@@ -1,0 +1,53 @@
+name: Lock Refresh
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 3 * * 1'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh-lock:
+    name: Refresh composer.lock (PHP 8.4)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+
+      - name: Update dependencies
+        run: composer update --with-all-dependencies --no-interaction --no-progress
+
+      - name: Validate lock by install
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Run PHPUnit
+        run: vendor/bin/phpunit
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "chore: aktualisiere composer lock"
+          branch: chore/lock-refresh
+          delete-branch: true
+          title: "chore: aktualisiere composer lock"
+          body: |
+            Automatisches Update von `composer.lock` (Basis: PHP 8.4).
+
+            Enthalten:
+            - `composer update --with-all-dependencies`
+            - Validierung via `composer install`
+            - Testlauf via PHPUnit
+          labels: |
+            dependencies
+            automated
