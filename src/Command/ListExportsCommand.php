@@ -26,10 +26,11 @@ final class ListExportsCommand extends Command
 
         $rows = [];
         foreach ($config->exports as $key => $export) {
-            $rows[] = [$key, $export->title, $export->slug, (string) count($export->includeSources), $export->cacheTtl];
+            $feedPath = sprintf('/feed/%s/%s.ics', $export->slug, $export->token);
+            $rows[] = [$key, $export->title, $export->slug, $feedPath, (string) count($export->includeSources), $export->cacheTtl];
         }
 
-        $io->table(['export key', 'title', 'slug', 'sources', 'cache_ttl'], $rows);
+        $io->table(['export key', 'title', 'slug', 'feed_path', 'sources', 'cache_ttl'], $rows);
 
         return Command::SUCCESS;
     }
