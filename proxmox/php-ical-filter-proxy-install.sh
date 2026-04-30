@@ -23,6 +23,7 @@ REPO_SLUG="stevenbuehner/php-ical-filter-proxy"
 REPO_URL="https://github.com/${REPO_SLUG}.git"
 DEPLOY_REF_MODE="stable-tag"
 NGINX_SITE="/etc/nginx/sites-available/${APP_SLUG}.conf"
+PHP_VERSION="8.4"
 PHP_FPM_SERVICE="php8.4-fpm"
 
 msg_info "Installing dependencies"
@@ -34,8 +35,8 @@ $STD apt-get install -y \
   nginx \
   composer \
   php8.4 \
-  php8.4-cli \
   php8.4-fpm \
+  php8.4-cli \
   php8.4-curl \
   php8.4-mbstring \
   php8.4-xml \
@@ -88,9 +89,17 @@ APP_USER="icalproxy"
 APP_GROUP="icalproxy"
 REPO_URL="https://github.com/stevenbuehner/php-ical-filter-proxy.git"
 DEPLOY_REF_MODE="${DEPLOY_REF_MODE:-stable-tag}"
+PHP_VERSION="8.4"
+PHP_FPM_SERVICE="php8.4-fpm"
 
 cd "$APP_DIR"
-CURRENT_BRANCH=""
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get install -y --no-install-recommends \
+  ca-certificates curl git unzip nginx composer \
+  php8.4 php8.4-fpm php8.4-cli php8.4-curl php8.4-mbstring php8.4-xml php8.4-zip php8.4-intl php8.4-bcmath php8.4-opcache
+apt-get upgrade -y
+
 if [[ "${DEPLOY_REF_MODE}" == "latest-release" ]]; then
   LATEST_REF="$(curl -fsSL https://api.github.com/repos/stevenbuehner/php-ical-filter-proxy/releases/latest | grep '"tag_name"' | head -1 | cut -d '"' -f4)"
 else
@@ -112,7 +121,7 @@ chmod -R u=rwX,g=rwX,o= "$APP_DIR/var"
 cp -f /tmp/calendars.yaml.bak config/calendars.yaml 2>/dev/null || true
 php bin/console app:config:validate >/dev/null 2>&1 || true
 systemctl reload nginx >/dev/null 2>&1 || true
-systemctl reload php8.4-fpm >/dev/null 2>&1 || true
+systemctl reload "$PHP_FPM_SERVICE" >/dev/null 2>&1 || true
 EOS
 chmod +x "$APP_DIR/scripts/update.sh"
 sed -i "s/^DEPLOY_REF_MODE=.*/DEPLOY_REF_MODE=\"${DEPLOY_REF_MODE}\"/" "$APP_DIR/scripts/update.sh"
@@ -132,7 +141,7 @@ server {
   location ~ \.php$ {
     include snippets/fastcgi-php.conf;
     fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
-    fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+    fastcgi_pass unix:/run/php/php${PHP_VERSION}-fpm.sock;
   }
 
   location ~ /\. {
@@ -145,11 +154,11 @@ ln -sf "$NGINX_SITE" "/etc/nginx/sites-enabled/${APP_SLUG}.conf"
 rm -f /etc/nginx/sites-enabled/default
 
 msg_info "Configuring php-fpm pool"
-cat > "/etc/php/8.4/fpm/pool.d/${APP_SLUG}.conf" <<EOF_FPM
+cat > "/etc/php/${PHP_VERSION}/fpm/pool.d/${APP_SLUG}.conf" <<EOF_FPM
 [${APP_SLUG}]
 user = ${APP_USER}
 group = ${APP_GROUP}
-listen = /run/php/php8.4-fpm.sock
+listen = /run/php/php${PHP_VERSION}-fpm.sock
 listen.owner = www-data
 listen.group = www-data
 pm = dynamic
