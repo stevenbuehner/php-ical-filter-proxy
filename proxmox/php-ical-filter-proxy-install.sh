@@ -5,6 +5,7 @@
 # License: MIT | https://github.com/stevenbuehner/php-ical-filter-proxy/raw/main/LICENSE
 # Source: https://github.com/stevenbuehner/php-ical-filter-proxy
 
+# shellcheck source=/dev/null
 source /dev/stdin <<<"$FUNCTIONS_FILE_PATH"
 color
 verb_ip6
@@ -64,7 +65,7 @@ git clone --depth 1 --branch "$LATEST_TAG" "$REPO_URL" "$APP_DIR"
 msg_ok "Cloned application"
 
 msg_info "Installing Composer dependencies"
-cd "$APP_DIR"
+cd "$APP_DIR" || exit 1
 $STD composer install --no-dev --prefer-dist --optimize-autoloader
 msg_ok "Composer dependencies installed"
 
@@ -114,6 +115,7 @@ systemctl reload nginx >/dev/null 2>&1 || true
 systemctl reload php8.4-fpm >/dev/null 2>&1 || true
 EOS
 chmod +x "$APP_DIR/scripts/update.sh"
+sed -i "s/^DEPLOY_REF_MODE=.*/DEPLOY_REF_MODE=\"${DEPLOY_REF_MODE}\"/" "$APP_DIR/scripts/update.sh"
 
 cat > "$NGINX_SITE" <<EOF_NGINX
 server {
