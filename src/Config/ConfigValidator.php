@@ -26,7 +26,7 @@ final readonly class ConfigValidator
         $locator = new YamlLineLocator();
 
         if (!is_file($configFile)) {
-            return [new ValidationError('file_not_found', 'Config file not found.', 'root', 'existing file', $configFile, 1)];
+            return [new ValidationError('file_not_found', 'Config file not found.', 'root', $configFile, 'no existing file', 1)];
         }
 
         try {
