@@ -15,190 +15,170 @@ final readonly class ConfigValidator
     private const FILTER_ALLOWED_KEYS = ['name', 'action', 'match', 'transform', 'transforms'];
     private const MATCH_FIELDS = ['summary', 'description', 'location', 'url', 'categories', 'date'];
     private const MATCH_OPERATORS = [
-        'contains',
-        'contains_any',
-        'contains_all',
-        'not_contains',
-        'equals',
-        'not_equals',
-        'regex',
-        'empty',
+        'contains', 'contains_any', 'contains_all', 'not_contains', 'equals', 'not_equals', 'regex', 'empty',
     ];
 
+    /** @return list<ValidationError> */
     public function validateFile(string $configFile, string $feedCacheDir, string $exportCacheDir): array
     {
         $errors = [];
+        $lines = is_file($configFile) ? file($configFile, FILE_IGNORE_NEW_LINES) : [];
+        $locator = new YamlLineLocator();
 
         if (!is_file($configFile)) {
-            return [sprintf('Config file not found: %s', $configFile)];
+            return [new ValidationError('file_not_found', 'Config file not found.', 'root', 'existing file', $configFile, 1)];
         }
 
         try {
             $parsed = Yaml::parseFile($configFile);
         } catch (ParseException $exception) {
-            return [sprintf('YAML syntax error: %s', $exception->getMessage())];
+            return [new ValidationError('yaml_syntax', 'YAML syntax error.', 'root', 'valid YAML', $exception->getMessage(), $exception->getParsedLine() ?: 1)];
         }
 
         if (!is_array($parsed)) {
-            return ['Config root must be a YAML mapping.'];
+            return [new ValidationError('root_mapping', 'Config root must be a mapping.', 'root', 'mapping', gettype($parsed), 1)];
         }
 
-        $errors = array_merge($errors, $this->validateRoot($parsed));
-        $errors = array_merge($errors, $this->validateSources($parsed['sources'] ?? null));
-        $errors = array_merge($errors, $this->validateExports($parsed['exports'] ?? null, $parsed['sources'] ?? null));
-        $errors = array_merge($errors, $this->validateCacheDirectory($feedCacheDir, 'var/cache/feeds'));
-        $errors = array_merge($errors, $this->validateCacheDirectory($exportCacheDir, 'var/cache/exports'));
+        $add = function (ValidationError $error) use (&$errors, $locator, $lines): void {
+            $line = $error->line ?? $locator->locate($lines, $error->path);
+            $errors[] = new ValidationError($error->code, $error->message, $error->path, $error->expected, $error->found, $line);
+        };
+
+        foreach ($this->validateRoot($parsed) as $err) { $add($err); }
+        foreach ($this->validateSources($parsed['sources'] ?? null) as $err) { $add($err); }
+        foreach ($this->validateExports($parsed['exports'] ?? null, $parsed['sources'] ?? null) as $err) { $add($err); }
+        foreach ($this->validateCacheDirectory($feedCacheDir, 'var/cache/feeds') as $err) { $add($err); }
+        foreach ($this->validateCacheDirectory($exportCacheDir, 'var/cache/exports') as $err) { $add($err); }
 
         return $errors;
     }
 
+    /** @return list<ValidationError> */
     private function validateRoot(array $root): array
     {
         $errors = [];
-        $allowed = ['sources', 'exports'];
-
         foreach (array_keys($root) as $key) {
-            if (!in_array((string) $key, $allowed, true)) {
-                $errors[] = sprintf("Unknown root key '%s'.", (string) $key);
+            if (!in_array((string) $key, ['sources', 'exports'], true)) {
+                $errors[] = new ValidationError('unknown_key', 'Unknown root key.', (string) $key, 'sources|exports', (string) $key);
             }
         }
-
         if (!array_key_exists('sources', $root)) {
-            $errors[] = "Missing required root key 'sources'.";
+            $errors[] = new ValidationError('missing_key', "Missing required root key.", 'sources', 'present', 'missing');
         }
-
         if (!array_key_exists('exports', $root)) {
-            $errors[] = "Missing required root key 'exports'.";
+            $errors[] = new ValidationError('missing_key', "Missing required root key.", 'exports', 'present', 'missing');
         }
-
         return $errors;
     }
 
+    /** @return list<ValidationError> */
     private function validateSources(mixed $sources): array
     {
         $errors = [];
-
         if (!is_array($sources)) {
-            return ["Root key 'sources' must be a mapping with at least one source."];
+            return [new ValidationError('invalid_type', 'Sources must be a mapping.', 'sources', 'mapping', gettype($sources))];
         }
-
         if ($sources === []) {
-            $errors[] = "Root key 'sources' must contain at least one source.";
-            return $errors;
+            return [new ValidationError('empty_collection', 'Sources must contain at least one source.', 'sources', '>=1 source', 'empty')];
         }
 
         foreach ($sources as $sourceId => $sourceData) {
-            $path = sprintf('sources.%s', (string) $sourceId);
-
+            $path = 'sources.' . (string) $sourceId;
             if (!is_array($sourceData)) {
-                $errors[] = sprintf("%s must be a mapping.", $path);
+                $errors[] = new ValidationError('invalid_type', 'Source config must be a mapping.', $path, 'mapping', gettype($sourceData));
                 continue;
             }
+            foreach ($this->validateUnknownKeys($sourceData, self::SOURCE_ALLOWED_KEYS, $path) as $e) { $errors[] = $e; }
 
-            $errors = array_merge($errors, $this->validateUnknownKeys($sourceData, self::SOURCE_ALLOWED_KEYS, $path));
-
-            if (!array_key_exists('url', $sourceData) || trim((string) $sourceData['url']) == '') {
-                $errors[] = sprintf("%s.url is required and must not be empty.", $path);
+            $url = (string) ($sourceData['url'] ?? '');
+            if ($url === '') {
+                $errors[] = new ValidationError('missing_key', 'Source URL is required.', $path . '.url', 'non-empty string', 'missing/empty');
             }
 
             if (array_key_exists('cache_ttl', $sourceData)) {
-                $errors = array_merge($errors, $this->validateTtl((string) $sourceData['cache_ttl'], sprintf('%s.cache_ttl', $path)));
+                foreach ($this->validateTtl((string) $sourceData['cache_ttl'], $path . '.cache_ttl') as $e) { $errors[] = $e; }
             }
-
             if (array_key_exists('filters', $sourceData)) {
-                $errors = array_merge($errors, $this->validateFilters($sourceData['filters'], sprintf('%s.filters', $path)));
+                foreach ($this->validateFilters($sourceData['filters'], $path . '.filters') as $e) { $errors[] = $e; }
             }
         }
-
         return $errors;
     }
 
+    /** @return list<ValidationError> */
     private function validateExports(mixed $exports, mixed $sources): array
     {
         $errors = [];
-
         if (!is_array($exports)) {
-            return ["Root key 'exports' must be a mapping with at least one export."];
+            return [new ValidationError('invalid_type', 'Exports must be a mapping.', 'exports', 'mapping', gettype($exports))];
         }
-
         if ($exports === []) {
-            $errors[] = "Root key 'exports' must contain at least one export.";
-            return $errors;
+            return [new ValidationError('empty_collection', 'Exports must contain at least one export.', 'exports', '>=1 export', 'empty')];
         }
 
         $availableSources = is_array($sources) ? array_map('strval', array_keys($sources)) : [];
         $slugMap = [];
 
         foreach ($exports as $exportId => $exportData) {
-            $path = sprintf('exports.%s', (string) $exportId);
-
+            $path = 'exports.' . (string) $exportId;
             if (!is_array($exportData)) {
-                $errors[] = sprintf("%s must be a mapping.", $path);
+                $errors[] = new ValidationError('invalid_type', 'Export config must be a mapping.', $path, 'mapping', gettype($exportData));
                 continue;
             }
 
-            $errors = array_merge($errors, $this->validateUnknownKeys($exportData, self::EXPORT_ALLOWED_KEYS, $path));
+            foreach ($this->validateUnknownKeys($exportData, self::EXPORT_ALLOWED_KEYS, $path) as $e) { $errors[] = $e; }
 
-            foreach (['title', 'slug', 'token', 'include_sources'] as $requiredKey) {
-                if (!array_key_exists($requiredKey, $exportData)) {
-                    $errors[] = sprintf("%s.%s is required.", $path, $requiredKey);
+            foreach (['title', 'slug', 'token', 'include_sources'] as $required) {
+                if (!array_key_exists($required, $exportData)) {
+                    $errors[] = new ValidationError('missing_key', 'Required export key missing.', $path . '.' . $required, 'present', 'missing');
                 }
             }
 
             $slug = trim((string) ($exportData['slug'] ?? ''));
-            if ($slug !== '') {
-                if (isset($slugMap[$slug])) {
-                    $errors[] = sprintf(
-                        "Duplicate slug '%s' found in %s and %s.",
-                        $slug,
-                        $slugMap[$slug],
-                        $path
-                    );
-                } else {
-                    $slugMap[$slug] = $path;
-                }
+            if ($slug === '') {
+                $errors[] = new ValidationError('invalid_value', 'Slug must not be empty.', $path . '.slug', 'non-empty string', 'empty');
+            } elseif (isset($slugMap[$slug])) {
+                $errors[] = new ValidationError('duplicate_slug', 'Slug must be unique.', $path . '.slug', 'unique slug', $slug);
             } else {
-                $errors[] = sprintf('%s.slug must not be empty.', $path);
+                $slugMap[$slug] = true;
             }
 
             if (trim((string) ($exportData['token'] ?? '')) === '') {
-                $errors[] = sprintf('%s.token must not be empty.', $path);
+                $errors[] = new ValidationError('invalid_value', 'Token must not be empty.', $path . '.token', 'non-empty string', 'empty');
             }
 
             if (array_key_exists('cache_ttl', $exportData)) {
-                $errors = array_merge($errors, $this->validateTtl((string) $exportData['cache_ttl'], sprintf('%s.cache_ttl', $path)));
+                foreach ($this->validateTtl((string) $exportData['cache_ttl'], $path . '.cache_ttl') as $e) { $errors[] = $e; }
             }
 
-            $includeSources = $exportData['include_sources'] ?? null;
-            if (!is_array($includeSources)) {
-                $errors[] = sprintf('%s.include_sources must be a list with at least one entry.', $path);
+            $include = $exportData['include_sources'] ?? null;
+            if (!is_array($include)) {
+                $errors[] = new ValidationError('invalid_type', 'include_sources must be a list.', $path . '.include_sources', 'list', gettype($include));
+                continue;
+            }
+            if ($include === []) {
+                $errors[] = new ValidationError('empty_collection', 'include_sources must contain at least one entry.', $path . '.include_sources', '>=1 entry', 'empty');
                 continue;
             }
 
-            if ($includeSources === []) {
-                $errors[] = sprintf('%s.include_sources must contain at least one entry.', $path);
-                continue;
-            }
-
-            foreach ($includeSources as $index => $includeSource) {
-                $includePath = sprintf('%s.include_sources[%d]', $path, (int) $index);
-
+            foreach ($include as $idx => $includeSource) {
+                $includePath = $path . '.include_sources[' . (int) $idx . ']';
                 if (!is_array($includeSource)) {
-                    $errors[] = sprintf('%s must be a mapping.', $includePath);
+                    $errors[] = new ValidationError('invalid_type', 'include_sources entry must be a mapping.', $includePath, 'mapping', gettype($includeSource));
                     continue;
                 }
 
-                $errors = array_merge($errors, $this->validateUnknownKeys($includeSource, self::INCLUDED_SOURCE_ALLOWED_KEYS, $includePath));
+                foreach ($this->validateUnknownKeys($includeSource, self::INCLUDED_SOURCE_ALLOWED_KEYS, $includePath) as $e) { $errors[] = $e; }
 
                 $sourceRef = trim((string) ($includeSource['source'] ?? ''));
                 if ($sourceRef === '') {
-                    $errors[] = sprintf('%s.source is required and must not be empty.', $includePath);
+                    $errors[] = new ValidationError('missing_key', 'Referenced source is required.', $includePath . '.source', 'non-empty source key', 'missing/empty');
                 } elseif (!in_array($sourceRef, $availableSources, true)) {
-                    $errors[] = sprintf("%s references unknown source '%s'.", $includePath, $sourceRef);
+                    $errors[] = new ValidationError('unknown_reference', 'Referenced source does not exist.', $includePath . '.source', 'existing source key', $sourceRef);
                 }
 
                 if (array_key_exists('filters', $includeSource)) {
-                    $errors = array_merge($errors, $this->validateFilters($includeSource['filters'], sprintf('%s.filters', $includePath)));
+                    foreach ($this->validateFilters($includeSource['filters'], $includePath . '.filters') as $e) { $errors[] = $e; }
                 }
             }
         }
@@ -206,64 +186,60 @@ final readonly class ConfigValidator
         return $errors;
     }
 
+    /** @return list<ValidationError> */
     private function validateFilters(mixed $filters, string $path): array
     {
         $errors = [];
-
         if (!is_array($filters)) {
-            return [sprintf('%s must be a list.', $path)];
+            return [new ValidationError('invalid_type', 'Filters must be a list.', $path, 'list', gettype($filters))];
         }
 
         foreach ($filters as $index => $filter) {
-            $filterPath = sprintf('%s[%d]', $path, (int) $index);
-
+            $filterPath = $path . '[' . (int) $index . ']';
             if (!is_array($filter)) {
-                $errors[] = sprintf('%s must be a mapping.', $filterPath);
+                $errors[] = new ValidationError('invalid_type', 'Filter must be a mapping.', $filterPath, 'mapping', gettype($filter));
                 continue;
             }
 
-            $errors = array_merge($errors, $this->validateUnknownKeys($filter, self::FILTER_ALLOWED_KEYS, $filterPath));
+            foreach ($this->validateUnknownKeys($filter, self::FILTER_ALLOWED_KEYS, $filterPath) as $e) { $errors[] = $e; }
 
             $action = (string) ($filter['action'] ?? 'remove');
             if (!in_array($action, ['keep', 'remove'], true)) {
-                $errors[] = sprintf("%s.action must be 'keep' or 'remove'.", $filterPath);
+                $errors[] = new ValidationError('invalid_value', 'Filter action must be keep or remove.', $filterPath . '.action', 'keep|remove', $action);
             }
 
             $match = $filter['match'] ?? null;
             if (!is_array($match)) {
-                $errors[] = sprintf('%s.match must be a mapping.', $filterPath);
-            } else {
-                foreach ($match as $field => $ruleSet) {
-                    $fieldName = (string) $field;
-                    $matchPath = sprintf('%s.match.%s', $filterPath, $fieldName);
+                $errors[] = new ValidationError('invalid_type', 'Filter match must be a mapping.', $filterPath . '.match', 'mapping', gettype($match));
+                continue;
+            }
 
-                    if (!in_array($fieldName, self::MATCH_FIELDS, true)) {
-                        $errors[] = sprintf("%s uses unsupported field '%s'.", $filterPath, $fieldName);
+            foreach ($match as $field => $ruleSet) {
+                $fieldName = (string) $field;
+                $matchPath = $filterPath . '.match.' . $fieldName;
+
+                if (!in_array($fieldName, self::MATCH_FIELDS, true)) {
+                    $errors[] = new ValidationError('invalid_value', 'Unsupported match field.', $matchPath, implode('|', self::MATCH_FIELDS), $fieldName);
+                    continue;
+                }
+
+                if (!is_array($ruleSet)) {
+                    $errors[] = new ValidationError('invalid_type', 'Match field must map operators.', $matchPath, 'mapping', gettype($ruleSet));
+                    continue;
+                }
+
+                foreach ($ruleSet as $operator => $value) {
+                    $op = (string) $operator;
+                    if (!in_array($op, self::MATCH_OPERATORS, true)) {
+                        $errors[] = new ValidationError('invalid_value', 'Unsupported match operator.', $matchPath, implode('|', self::MATCH_OPERATORS), $op);
                         continue;
                     }
 
-                    if (!is_array($ruleSet)) {
-                        $errors[] = sprintf('%s must be a mapping of operators.', $matchPath);
-                        continue;
-                    }
-
-                    foreach ($ruleSet as $operator => $value) {
-                        $operatorName = (string) $operator;
-                        if (!in_array($operatorName, self::MATCH_OPERATORS, true)) {
-                            $errors[] = sprintf("%s contains unsupported operator '%s'.", $matchPath, $operatorName);
-                            continue;
-                        }
-
-                        if ($operatorName === 'regex') {
-                            $regexPath = sprintf('%s.regex', $matchPath);
-                            if (!is_string($value) || $value === '') {
-                                $errors[] = sprintf('%s must be a non-empty regex string.', $regexPath);
-                                continue;
-                            }
-
-                            if (@preg_match($value, '') === false) {
-                                $errors[] = sprintf('%s is not a valid regex pattern.', $regexPath);
-                            }
+                    if ($op === 'regex') {
+                        if (!is_string($value) || $value === '') {
+                            $errors[] = new ValidationError('invalid_type', 'Regex operator requires non-empty string.', $matchPath . '.regex', 'non-empty regex string', gettype($value));
+                        } elseif (@preg_match($value, '') === false) {
+                            $errors[] = new ValidationError('invalid_value', 'Regex pattern is invalid.', $matchPath . '.regex', 'valid PCRE pattern', $value);
                         }
                     }
                 }
@@ -273,42 +249,39 @@ final readonly class ConfigValidator
         return $errors;
     }
 
+    /** @return list<ValidationError> */
     private function validateTtl(string $ttl, string $path): array
     {
         if (!preg_match('/^[1-9][0-9]*(s|m|h|d)$/', $ttl)) {
-            return [sprintf('%s must match TTL format like 30s, 15m, 1h or 1d.', $path)];
+            return [new ValidationError('invalid_value', 'TTL format is invalid.', $path, '30s|15m|1h|1d', $ttl)];
         }
-
         return [];
     }
 
+    /** @return list<ValidationError> */
     private function validateCacheDirectory(string $directory, string $label): array
     {
         $errors = [];
-
         if (!is_dir($directory)) {
-            $errors[] = sprintf('%s does not exist: %s', $label, $directory);
+            $errors[] = new ValidationError('missing_path', 'Cache directory does not exist.', $label, 'existing writable directory', $directory);
             return $errors;
         }
-
         if (!is_writable($directory)) {
-            $errors[] = sprintf('%s is not writable: %s', $label, $directory);
+            $errors[] = new ValidationError('not_writable', 'Cache directory is not writable.', $label, 'writable directory', $directory);
         }
-
         return $errors;
     }
 
+    /** @return list<ValidationError> */
     private function validateUnknownKeys(array $data, array $allowed, string $path): array
     {
         $errors = [];
-
         foreach (array_keys($data) as $key) {
             $name = (string) $key;
             if (!in_array($name, $allowed, true)) {
-                $errors[] = sprintf("Unknown key '%s' at %s.", $name, $path);
+                $errors[] = new ValidationError('unknown_key', 'Unknown key.', $path . '.' . $name, implode('|', $allowed), $name);
             }
         }
-
         return $errors;
     }
 }
