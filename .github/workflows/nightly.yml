@@ -51,8 +51,8 @@ jobs:
 
       - name: Run CT script smoke test
         run: |
-          bash -n ct/php-ical-filter-proxy.sh
-          bash -n install/php-ical-filter-proxy-install.sh
+          bash -n proxmox/php-ical-filter-proxy.sh
+          bash -n proxmox/php-ical-filter-proxy-install.sh
 
       - name: E2E placeholder
         run: |
