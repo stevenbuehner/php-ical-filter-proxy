@@ -268,11 +268,11 @@ filters:
 
 ## 14. Caching-Konzept
 Zwei Ebenen:
-- Source-Cache (`var/cache/feeds`): rohe ICS-Inhalte pro externer Quelle
+- Source-Cache (`var/cache/feeds`): normalisierte Source-Feeds nach Anwendung von `sources.<id>.filters` inkl. Transformationen
 - Export-Cache (`var/cache/exports`): fertige serialisierte Export-Feeds
 
 Fallback-Verhalten:
-- bei HTTP-Fehlern wird (wenn vorhanden) veralteter Source-Cache verwendet
+- bei HTTP-Fehlern wird (wenn vorhanden) veralteter normalisierter Source-Cache verwendet
 - wenn keine Quelle erfolgreich verarbeitet werden kann, liefert der HTTP-Endpunkt `503`
 
 ## 15. CLI-Befehle
@@ -300,6 +300,20 @@ Export-Vorschau:
 ```bash
 php bin/console app:export:preview technikdienst --limit=20
 php bin/console app:export:preview technikdienst --limit=20 --no-cache
+```
+
+Cache löschen:
+```bash
+php bin/console app:cache:clear
+php bin/console app:cache:clear --scope=feeds
+php bin/console app:cache:clear --scope=exports
+```
+
+Cache aufräumen (Dateien älter als Alter):
+```bash
+php bin/console app:cache:prune
+php bin/console app:cache:prune --scope=feeds --age=3d
+php bin/console app:cache:prune --scope=all --age=12h
 ```
 
 ## 16. Fehlerbehandlung
