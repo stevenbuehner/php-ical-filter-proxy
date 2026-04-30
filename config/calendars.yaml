@@ -1,0 +1,19 @@
+sources:
+  gemeinde:
+    url: "https://example.com/calendar.ics"
+    cache_ttl: "15m"
+
+exports:
+  technikdienst:
+    title: "Technikdienst"
+    slug: "technikdienst"
+    token: "replace-with-secure-random-token"
+    cache_ttl: "10m"
+    include_sources:
+      - source: gemeinde
+        filters:
+          - name: "Nur Technik"
+            action: keep
+            match:
+              summary:
+                contains: "Technik"
