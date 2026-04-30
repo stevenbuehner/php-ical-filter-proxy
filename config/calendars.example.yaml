@@ -1,21 +1,21 @@
 sources:
   gemeinde:
-    label: "Gemeindekalender"
-    url: "https://example.com/calendar.ics"
+    label: "Ferien"
+    url: "https://i.cal.to/ical/80/baden-wuerttemberg/ferien/62ef0495.b1e7a29f-c17b1fb6.ics"
     cache_ttl: "15m"
     filters: []
 
 exports:
   technikdienst:
-    title: "Technikdienst"
-    slug: "technikdienst"
+    title: "Test"
+    slug: "Test"
     token: "random-secret-token"
     cache_ttl: "10m"
     include_sources:
       - source: gemeinde
         filters:
-          - name: "Nur Techniktermine"
+          - name: "Nur Sommerferien"
             action: keep
             match:
               summary:
-                contains: "Technik"
+                contains: "Sommer"
