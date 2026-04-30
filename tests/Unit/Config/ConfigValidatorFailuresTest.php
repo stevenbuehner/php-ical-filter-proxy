@@ -39,10 +39,19 @@ YAML);
         mkdir($cacheRoot . '/exports', 0777, true);
 
         $errors = (new ConfigValidator())->validateFile($configFile, $cacheRoot . '/feeds', $cacheRoot . '/exports');
-        $joined = implode("\n", $errors);
 
-        self::assertStringContainsString("Unknown key 'unknown'", $joined);
-        self::assertStringContainsString('cache_ttl must match TTL format', $joined);
-        self::assertStringContainsString('is not a valid regex pattern', $joined);
+        $codes = array_map(static fn ($e): string => $e->code, $errors);
+        $messages = array_map(static fn ($e): string => $e->message, $errors);
+        $paths = array_map(static fn ($e): string => $e->path, $errors);
+
+        self::assertContains('unknown_key', $codes);
+        self::assertContains('invalid_value', $codes);
+        self::assertContains('sources.s1.unknown', $paths);
+        self::assertContains('sources.s1.cache_ttl', $paths);
+        self::assertContains('exports.e1.include_sources[0].filters[0].match.summary.regex', $paths);
+
+        self::assertContains('Unknown key.', $messages);
+        self::assertContains('TTL format is invalid.', $messages);
+        self::assertContains('Regex pattern is invalid.', $messages);
     }
 }
