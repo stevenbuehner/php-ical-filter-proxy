@@ -31,5 +31,8 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-interaction --no-progress
 
+      - name: Prepare test config
+        run: cp config/calendars.example.yaml config/calendars.yaml
+
       - name: Run PHPUnit
         run: vendor/bin/phpunit

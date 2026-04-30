@@ -48,6 +48,9 @@ jobs:
       - name: Install dependencies
         run: composer install --prefer-dist --no-interaction --no-progress
 
+      - name: Prepare test config
+        run: cp config/calendars.example.yaml config/calendars.yaml
+
       - name: Validate config
         run: php bin/console app:config:validate
 
@@ -71,6 +74,9 @@ jobs:
 
       - name: Install dependencies
         run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Prepare test config
+        run: cp config/calendars.example.yaml config/calendars.yaml
 
       - name: Validate composer.json
         run: composer validate --strict
