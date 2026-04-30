@@ -1,21 +1,152 @@
 sources:
-  gemeinde:
-    label: "Ferien"
-    url: "https://i.cal.to/ical/80/baden-wuerttemberg/ferien/62ef0495.b1e7a29f-c17b1fb6.ics"
+  kirche:
+    label: "Kirchentermine"
+    url: "https://example.org/kirche.ics"
     cache_ttl: "15m"
-    filters: []
+    filters:
+      - name: "Interne Einträge entfernen"
+        action: remove
+        match:
+          summary:
+            contains_any: ["Intern", "Team-only", "Orga"]
+          description:
+            not_contains: "öffentlich"
+
+      - name: "Nur künftige Termine ab heute behalten"
+        action: keep
+        match:
+          date:
+            from: "now"
+
+      - name: "Leere URL ergänzen und Titel vereinheitlichen"
+        action: keep
+        match:
+          url:
+            empty: true
+        transforms:
+          - field: url
+            action: replace
+            value: "https://example.org/kalender"
+          - field: summary
+            action: prefix
+            value: "[Kirche] "
+
+  technik:
+    label: "Technikplan"
+    url: "https://example.org/technik.ics"
+    cache_ttl: "10m"
+    filters:
+      - name: "Abgesagte Dienste entfernen"
+        action: remove
+        match:
+          summary:
+            regex: "/abgesagt|cancelled/i"
+
+      - name: "Nur relevante Rollen"
+        action: keep
+        match:
+          summary:
+            contains_any: ["Ton", "Licht", "Stream", "Beamer"]
+
+      - name: "Location normalisieren"
+        action: keep
+        match:
+          location:
+            equals: "Hauptkirche"
+        transforms:
+          - field: location
+            action: replace
+            value: "Campus Hauptkirche"
+
+  externe_events:
+    label: "Externe Events"
+    url: "https://example.org/events.ics"
+    cache_ttl: "30m"
+    filters:
+      - name: "Nur die nächsten 12 Monate"
+        action: keep
+        match:
+          date:
+            from: "now"
+            until: "+12 months"
+
+      - name: "Kategorien ergänzen und Beschreibung markieren"
+        action: keep
+        match:
+          categories:
+            not_equals: ["Intern"]
+        transforms:
+          - field: categories
+            action: add
+            values: ["Extern", "Veranstaltung"]
+          - field: description
+            action: suffix
+            value: "\n\nQuelle: Externer Kalender"
 
 exports:
-  technikdienst:
-    title: "Test"
-    slug: "Test"
+  sonntag_technik:
+    title: "Sonntag Technikdienste"
+    slug: "sonntag-technik"
     token: "random-secret-token"
     cache_ttl: "10m"
     include_sources:
-      - source: gemeinde
+      - source: technik
         filters:
-          - name: "Nur Sommerferien"
+          - name: "Nur Sonntagsdienste"
             action: keep
             match:
               summary:
-                contains: "Sommer"
+                contains: "Sonntag"
+            transforms:
+              - field: summary
+                action: prefix
+                value: "[Dienst] "
+              - field: description
+                action: replace_regex
+                pattern: "/\\s+/"
+                value: " "
+
+  oeffentlich:
+    title: "Öffentlicher Kombi-Kalender"
+    slug: "oeffentlich"
+    token: "random-secret-token-2"
+    cache_ttl: "20m"
+    include_sources:
+      - source: kirche
+        filters:
+          - name: "Nur Gottesdienst und Gebet"
+            action: keep
+            match:
+              summary:
+                contains_any: ["Gottesdienst", "Gebet", "Andacht"]
+      - source: externe_events
+        filters:
+          - name: "Interne Kategorien rausfiltern"
+            action: remove
+            match:
+              categories:
+                contains: "Intern"
+
+  social_preview:
+    title: "Social Preview (nur Highlights)"
+    slug: "social-preview"
+    token: "random-secret-token-3"
+    cache_ttl: "5m"
+    include_sources:
+      - source: kirche
+        filters:
+          - name: "Nur Abendveranstaltungen"
+            action: keep
+            match:
+              summary:
+                contains_any: ["Abend", "Night", "Konzert"]
+            transforms:
+              - field: summary
+                action: prefix
+                value: "⭐ "
+              - field: summary
+                action: suffix
+                value: " (Highlight)"
+              - field: categories
+                action: add
+                values: ["Highlight"]
