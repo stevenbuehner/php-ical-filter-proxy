@@ -247,6 +247,23 @@ Unterstützt:
 Hinweis:
 - Bei `action: keep` sind Transformationen typischerweise relevant
 - Bei `action: remove` werden gematchte Events entfernt, daher ist Transform dort praktisch meist ohne Effekt
+- Wenn Transformationen immer auf alle Events angewendet werden sollen, nutze `action: keep` mit leerem Match:
+  `match: {}`
+
+Beispiel für "immer transformieren":
+```yaml
+filters:
+  - name: "Immer transformieren"
+    action: keep
+    match: {}
+    transforms:
+      - field: summary
+        action: prefix
+        value: "[Global] "
+      - field: categories
+        action: add
+        values: ["Standard"]
+```
 
 ## 14. Caching-Konzept
 Zwei Ebenen:
