@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eo pipefail
 : "${SSH_CLIENT:=}"
 : "${SSH_TTY:=}"
+export SSH_CLIENT SSH_TTY
 # shellcheck source=/dev/null
 source <(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/build.func)
 # Copyright (c) 2021-2026 Steven Buehner
