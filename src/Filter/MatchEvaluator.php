@@ -48,6 +48,10 @@ final class MatchEvaluator
 
     private function evaluateOperator(CalendarEvent $event, string $field, string $operator, mixed $expected): bool
     {
+        if ($field === 'date' && in_array($operator, ['from', 'until'], true)) {
+            return $this->matchesDate($event, [$operator => $expected]);
+        }
+
         return match ($operator) {
             'contains' => $this->contains($this->fieldAsText($event, $field), $this->toString($expected)),
             'contains_any' => $this->containsAny($this->fieldAsText($event, $field), $this->toStringList($expected)),

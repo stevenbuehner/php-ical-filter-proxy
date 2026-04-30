@@ -73,23 +73,27 @@ final readonly class FeedFetcher
             $responseMap[spl_object_id($request['response'])] = $sourceKey;
         }
 
-        foreach ($this->httpClient->stream(array_column($requests, 'response')) as $response => $chunk) {
-            if (!$chunk->isLast()) {
-                continue;
-            }
+        try {
+            foreach ($this->httpClient->stream(array_column($requests, 'response')) as $response => $chunk) {
+                if (!$chunk->isLast()) {
+                    continue;
+                }
 
-            $sourceKey = $responseMap[spl_object_id($response)] ?? null;
-            if ($sourceKey === null) {
-                continue;
-            }
+                $sourceKey = $responseMap[spl_object_id($response)] ?? null;
+                if ($sourceKey === null) {
+                    continue;
+                }
 
-            $results[$sourceKey] = $this->finalizeResponse(
-                $sourceKey,
-                $requests[$sourceKey]['source'],
-                $requests[$sourceKey]['cache_key'],
-                $response,
-            );
-            $this->logger->info('feed_fetch_end', ['source' => $sourceKey, 'from_cache' => $results[$sourceKey]->fromCache, 'has_error' => $results[$sourceKey]->error !== null]);
+                $results[$sourceKey] = $this->finalizeResponse(
+                    $sourceKey,
+                    $requests[$sourceKey]['source'],
+                    $requests[$sourceKey]['cache_key'],
+                    $response,
+                );
+                $this->logger->info('feed_fetch_end', ['source' => $sourceKey, 'from_cache' => $results[$sourceKey]->fromCache, 'has_error' => $results[$sourceKey]->error !== null]);
+            }
+        } catch (ExceptionInterface $exception) {
+            $this->logger->error('feed_fetch_stream_exception', ['message' => $exception->getMessage()]);
         }
 
         foreach (array_keys($sources) as $sourceKey) {

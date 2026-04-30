@@ -1,0 +1,13 @@
+/vendor/
+/.phpunit.result.cache
+
+# Runtime logs and caches
+/var/log/*
+!/var/log/.gitkeep
+/var/cache/feeds/*
+!/var/cache/feeds/.gitkeep
+/var/cache/exports/*
+!/var/cache/exports/.gitkeep
+
+# Local runtime config (keep only examples in git)
+/config/calendars.yaml
