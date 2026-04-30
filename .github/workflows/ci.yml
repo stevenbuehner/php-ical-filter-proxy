@@ -5,6 +5,8 @@ on:
     branches:
       - main
       - develop
+    tags:
+      - 'v*'
   pull_request:
     branches:
       - main
@@ -14,6 +16,27 @@ permissions:
   contents: read
 
 jobs:
+  proxmox-script-checks:
+    name: Proxmox script checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install shell tooling
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Bash syntax check
+        run: |
+          bash -n ct/php-ical-filter-proxy.sh
+          bash -n install/php-ical-filter-proxy-install.sh
+
+      - name: Shellcheck
+        run: |
+          shellcheck ct/php-ical-filter-proxy.sh
+          shellcheck install/php-ical-filter-proxy-install.sh
+
   phpunit:
     name: PHPUnit (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
