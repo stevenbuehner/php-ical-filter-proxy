@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # shellcheck source=/dev/null
 source <(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/build.func)
 # Copyright (c) 2021-2026 Steven Buehner
@@ -14,6 +15,8 @@ var_disk="${var_disk:-8}"
 var_os="${var_os:-debian}"
 var_version="${var_version:-13}"
 var_unprivileged="${var_unprivileged:-1}"
+var_install="${var_install:-https://raw.githubusercontent.com/stevenbuehner/php-ical-filter-proxy/refs/heads/master/proxmox/php-ical-filter-proxy-install.sh}"
+var_script="${var_script:-$var_install}"
 
 header_info "$APP"
 variables
