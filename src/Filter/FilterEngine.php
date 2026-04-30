@@ -56,7 +56,7 @@ final readonly class FilterEngine
 
                 if ($isMatch) {
                     $this->transformEngine->apply($event, $rule);
-                    $nextEvents[] = $event;
+                    $nextEvents[] = CalendarEvent::fromVEvent($event->originalEvent);
                     continue;
                 }
 

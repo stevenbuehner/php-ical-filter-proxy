@@ -247,15 +247,16 @@ Unterstützt:
 Hinweis:
 - Bei `action: keep` sind Transformationen typischerweise relevant
 - Bei `action: remove` werden gematchte Events entfernt, daher ist Transform dort praktisch meist ohne Effekt
-- Wenn Transformationen immer auf alle Events angewendet werden sollen, nutze `action: keep` mit leerem Match:
-  `match: {}`
+- Wenn Transformationen immer auf alle Events angewendet werden sollen, nutze `action: keep` mit:
+  `match.any: true`
 
 Beispiel für "immer transformieren":
 ```yaml
 filters:
   - name: "Immer transformieren"
     action: keep
-    match: {}
+    match:
+      any: true
     transforms:
       - field: summary
         action: prefix

@@ -29,4 +29,24 @@ final class FilterEngineTest extends TestCase
         self::assertCount(1, $result->filteredEvents);
         self::assertSame('Technikabend', $result->filteredEvents[0]->summary);
     }
+
+    public function testMatchAnyAppliesTransformToAllEvents(): void
+    {
+        $ics = file_get_contents(__DIR__ . '/../../Fixtures/filter-summary.ics');
+        self::assertNotFalse($ics);
+        $events = (new CalendarParser())->parseEvents($ics);
+
+        $rules = [
+            new FilterRuleConfig('global-prefix', 'keep', ['any' => true], [
+                ['field' => 'summary', 'action' => 'prefix', 'value' => '[ALL] '],
+            ]),
+        ];
+
+        $result = (new FilterEngine(new MatchEvaluator(), new TransformEngine()))->apply($events, $rules);
+
+        self::assertCount(count($events), $result->filteredEvents);
+        self::assertSame('[ALL] Technikdienst Probe', $result->filteredEvents[0]->summary);
+        self::assertSame('[ALL] Jugendtreffen', $result->filteredEvents[1]->summary);
+        self::assertSame('[ALL] Technikabend', $result->filteredEvents[2]->summary);
+    }
 }

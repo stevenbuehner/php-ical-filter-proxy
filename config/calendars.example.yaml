@@ -149,3 +149,20 @@ exports:
               - field: categories
                 action: add
                 values: ["Highlight"]
+
+  transform_all_demo:
+    title: "Transform All Demo"
+    slug: "transform-all-demo"
+    token: "random-secret-token-4"
+    cache_ttl: "10m"
+    include_sources:
+      - source: kirche
+        filters:
+          - name: "Globaler Prefix für alle Events"
+            action: keep
+            match:
+              any: true
+            transforms:
+              - field: summary
+                action: prefix
+                value: "[Global] "

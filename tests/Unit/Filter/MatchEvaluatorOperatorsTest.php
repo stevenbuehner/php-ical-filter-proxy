@@ -36,4 +36,13 @@ final class MatchEvaluatorOperatorsTest extends TestCase
 
         self::assertFalse((new MatchEvaluator())->matches($event, []));
     }
+
+    public function testAnyMatchesAllEvents(): void
+    {
+        $ics = file_get_contents(__DIR__ . '/../../Fixtures/simple.ics');
+        self::assertNotFalse($ics);
+        $event = (new CalendarParser())->parseEvents($ics)[0];
+
+        self::assertTrue((new MatchEvaluator())->matches($event, ['any' => true]));
+    }
 }

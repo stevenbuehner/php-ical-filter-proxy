@@ -13,7 +13,7 @@ final readonly class ConfigValidator
     private const EXPORT_ALLOWED_KEYS = ['title', 'slug', 'token', 'cache_ttl', 'include_sources'];
     private const INCLUDED_SOURCE_ALLOWED_KEYS = ['source', 'filters'];
     private const FILTER_ALLOWED_KEYS = ['name', 'action', 'match', 'transform', 'transforms'];
-    private const MATCH_FIELDS = ['summary', 'description', 'location', 'url', 'categories', 'date'];
+    private const MATCH_FIELDS = ['any', 'summary', 'description', 'location', 'url', 'categories', 'date'];
     private const MATCH_OPERATORS = [
         'contains', 'contains_any', 'contains_all', 'not_contains', 'equals', 'not_equals', 'regex', 'empty',
     ];
@@ -220,6 +220,13 @@ final readonly class ConfigValidator
 
                 if (!in_array($fieldName, self::MATCH_FIELDS, true)) {
                     $errors[] = new ValidationError('invalid_value', 'Unsupported match field.', $matchPath, implode('|', self::MATCH_FIELDS), $fieldName);
+                    continue;
+                }
+
+                if ($fieldName === 'any') {
+                    if (!is_bool($ruleSet) || $ruleSet !== true) {
+                        $errors[] = new ValidationError('invalid_value', 'match.any must be true.', $matchPath, 'true', is_bool($ruleSet) ? ($ruleSet ? 'true' : 'false') : gettype($ruleSet));
+                    }
                     continue;
                 }
 

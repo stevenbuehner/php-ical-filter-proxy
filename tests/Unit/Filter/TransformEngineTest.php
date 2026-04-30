@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Filter;
 
+use App\Calendar\CalendarEvent;
 use App\Calendar\CalendarParser;
 use App\Config\Dto\FilterRuleConfig;
 use App\Filter\TransformEngine;
@@ -46,5 +47,101 @@ final class TransformEngineTest extends TestCase
         self::assertStringNotContainsString('Dienst', (string) $event->originalEvent->CATEGORIES);
         self::assertSame('20260502T090000', (string) $event->originalEvent->DTSTART);
         self::assertSame('20260502T100000', (string) $event->originalEvent->DTEND);
+    }
+
+    public function testPrefixTransform(): void
+    {
+        $event = $this->firstEvent();
+        $rule = $this->rule([['field' => 'summary', 'action' => 'prefix', 'value' => '[P] ']]);
+
+        (new TransformEngine())->apply($event, $rule);
+
+        self::assertSame('[P] Technikprobe', (string) $event->originalEvent->SUMMARY);
+    }
+
+    public function testSuffixTransform(): void
+    {
+        $event = $this->firstEvent();
+        $rule = $this->rule([['field' => 'summary', 'action' => 'suffix', 'value' => ' [S]']]);
+
+        (new TransformEngine())->apply($event, $rule);
+
+        self::assertSame('Technikprobe [S]', (string) $event->originalEvent->SUMMARY);
+    }
+
+    public function testReplaceTransform(): void
+    {
+        $event = $this->firstEvent();
+        $rule = $this->rule([['field' => 'description', 'action' => 'replace', 'search' => 'Team', 'replace' => 'Crew']]);
+
+        (new TransformEngine())->apply($event, $rule);
+
+        self::assertSame('Technik Crew', (string) $event->originalEvent->DESCRIPTION);
+    }
+
+    public function testReplaceRegexTransform(): void
+    {
+        $event = $this->firstEvent();
+        $rule = $this->rule([['field' => 'location', 'action' => 'replace_regex', 'pattern' => '/Saal/i', 'replacement' => 'Halle']]);
+
+        (new TransformEngine())->apply($event, $rule);
+
+        self::assertSame('Halle A', (string) $event->originalEvent->LOCATION);
+    }
+
+    public function testRemoveTransform(): void
+    {
+        $event = $this->firstEvent();
+        $rule = $this->rule([['field' => 'url', 'action' => 'remove']]);
+
+        (new TransformEngine())->apply($event, $rule);
+
+        self::assertFalse(isset($event->originalEvent->URL));
+    }
+
+    public function testCategoriesAddAndRemoveTransforms(): void
+    {
+        $event = $this->firstEvent();
+        $rule = $this->rule([
+            ['field' => 'categories', 'action' => 'add', 'value' => 'Extra'],
+            ['field' => 'categories', 'action' => 'remove', 'value' => 'Dienst'],
+        ]);
+
+        (new TransformEngine())->apply($event, $rule);
+
+        self::assertStringContainsString('Extra', (string) $event->originalEvent->CATEGORIES);
+        self::assertStringNotContainsString('Dienst', (string) $event->originalEvent->CATEGORIES);
+    }
+
+    public function testStartAndEndModifyTransform(): void
+    {
+        $event = $this->firstEvent();
+        $rule = $this->rule([
+            ['field' => 'start', 'action' => 'modify', 'value' => '+1 day'],
+            ['field' => 'end', 'action' => 'modify', 'value' => '+1 day'],
+        ]);
+
+        (new TransformEngine())->apply($event, $rule);
+
+        self::assertSame('20260502T090000', (string) $event->originalEvent->DTSTART);
+        self::assertSame('20260502T100000', (string) $event->originalEvent->DTEND);
+    }
+
+    private function firstEvent(): CalendarEvent
+    {
+        $ics = file_get_contents(__DIR__ . '/../../Fixtures/simple.ics');
+        self::assertNotFalse($ics);
+
+        return (new CalendarParser())->parseEvents($ics)[0];
+    }
+
+    private function rule(array $transforms): FilterRuleConfig
+    {
+        return new FilterRuleConfig(
+            name: 'transform',
+            action: 'keep',
+            match: ['summary' => ['contains' => 'Technik']],
+            transforms: $transforms,
+        );
     }
 }

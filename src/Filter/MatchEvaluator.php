@@ -19,7 +19,15 @@ final class MatchEvaluator
             return false;
         }
 
+        if (($matchConfig['any'] ?? false) === true) {
+            return true;
+        }
+
         foreach ($matchConfig as $field => $conditions) {
+            if ((string) $field === 'any') {
+                continue;
+            }
+
             if (!is_array($conditions) || $conditions === []) {
                 return false;
             }
