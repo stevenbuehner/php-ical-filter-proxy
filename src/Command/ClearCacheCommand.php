@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Command;
 
-use App\Cache\CacheMaintenance;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -15,6 +14,8 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[AsCommand(name: 'app:cache:clear', description: 'Clears cache files in feeds, exports or both')]
 final class ClearCacheCommand extends Command
 {
+    use CacheCommandSupport;
+
     public function __construct(private readonly string $projectRoot, ?string $name = null)
     {
         parent::__construct($name);
@@ -30,15 +31,12 @@ final class ClearCacheCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $scope = strtolower(trim((string) $input->getOption('scope')));
 
-        if (!in_array($scope, ['feeds', 'exports', 'all'], true)) {
-            $io->error('Invalid scope. Allowed values: feeds, exports, all.');
+        if (!$this->isValidScope($scope)) {
+            $io->error($this->invalidScopeMessage());
             return Command::INVALID;
         }
 
-        $maintenance = new CacheMaintenance(
-            $this->projectRoot . '/var/cache/feeds',
-            $this->projectRoot . '/var/cache/exports'
-        );
+        $maintenance = $this->cacheMaintenance($this->projectRoot);
 
         $stats = $maintenance->clear($scope);
 

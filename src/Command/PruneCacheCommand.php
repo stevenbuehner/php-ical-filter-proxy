@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Command;
 
-use App\Cache\CacheMaintenance;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -15,6 +14,8 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[AsCommand(name: 'app:cache:prune', description: 'Prunes cache files older than the given age')]
 final class PruneCacheCommand extends Command
 {
+    use CacheCommandSupport;
+
     public function __construct(private readonly string $projectRoot, ?string $name = null)
     {
         parent::__construct($name);
@@ -33,8 +34,8 @@ final class PruneCacheCommand extends Command
         $scope = strtolower(trim((string) $input->getOption('scope')));
         $ageRaw = strtolower(trim((string) $input->getOption('age')));
 
-        if (!in_array($scope, ['feeds', 'exports', 'all'], true)) {
-            $io->error('Invalid scope. Allowed values: feeds, exports, all.');
+        if (!$this->isValidScope($scope)) {
+            $io->error($this->invalidScopeMessage());
             return Command::INVALID;
         }
 
@@ -44,10 +45,7 @@ final class PruneCacheCommand extends Command
             return Command::INVALID;
         }
 
-        $maintenance = new CacheMaintenance(
-            $this->projectRoot . '/var/cache/feeds',
-            $this->projectRoot . '/var/cache/exports'
-        );
+        $maintenance = $this->cacheMaintenance($this->projectRoot);
 
         $stats = $maintenance->pruneOlderThan($ageSeconds, $scope);
 
