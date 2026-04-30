@@ -1,0 +1,33 @@
+sources:
+  kalender:
+    url: "https://example.com/calendar.ics"
+
+exports:
+  aufbereitet:
+    title: "Aufbereiteter Export"
+    slug: "aufbereitet"
+    token: "secret-token"
+    include_sources:
+      - source: kalender
+        filters:
+          - name: "Technik markieren"
+            action: keep
+            match:
+              summary:
+                contains: "Technik"
+            transforms:
+              - field: summary
+                action: prefix
+                value: "[Technik] "
+              - field: location
+                action: suffix
+                value: " (Dienst)"
+              - field: description
+                action: replace
+                search: "intern"
+                replace: "extern"
+              - field: categories
+                action: add
+                value: "Technik"
+              - field: url
+                action: remove

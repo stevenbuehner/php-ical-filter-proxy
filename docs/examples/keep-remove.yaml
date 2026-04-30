@@ -1,0 +1,23 @@
+sources:
+  kalender:
+    url: "https://example.com/calendar.ics"
+
+exports:
+  technikdienst:
+    title: "Technikdienst"
+    slug: "technikdienst"
+    token: "secret-token"
+    include_sources:
+      - source: kalender
+        filters:
+          - name: "Nur Technik"
+            action: keep
+            match:
+              summary:
+                contains: "Technik"
+
+          - name: "Interne Termine ausblenden"
+            action: remove
+            match:
+              summary:
+                contains: "intern"

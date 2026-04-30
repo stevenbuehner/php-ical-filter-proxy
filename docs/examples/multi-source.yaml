@@ -1,0 +1,20 @@
+sources:
+  gemeinde:
+    label: "Gemeinde"
+    url: "https://example.com/gemeinde.ics"
+    cache_ttl: "15m"
+
+  jugend:
+    label: "Jugend"
+    url: "https://example.com/jugend.ics"
+    cache_ttl: "10m"
+
+exports:
+  kombiniert:
+    title: "Kombinierter Kalender"
+    slug: "kombiniert"
+    token: "very-secret-token"
+    cache_ttl: "5m"
+    include_sources:
+      - source: gemeinde
+      - source: jugend

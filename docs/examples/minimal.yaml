@@ -1,0 +1,11 @@
+sources:
+  gemeinde:
+    url: "https://example.com/gemeinde.ics"
+
+exports:
+  basis:
+    title: "Basis Export"
+    slug: "basis"
+    token: "change-me"
+    include_sources:
+      - source: gemeinde
