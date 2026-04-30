@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 # Copyright (c) 2021-2026 Steven Buehner
 # Author: Steven Buehner
 # License: MIT | https://github.com/stevenbuehner/php-ical-filter-proxy/raw/refs/heads/master/LICENSE
 # Source: https://github.com/stevenbuehner/php-ical-filter-proxy
+
+if [[ -z "${FUNCTIONS_FILE_PATH:-}" ]]; then
+  echo "ERROR: FUNCTIONS_FILE_PATH is missing. Run this script through the Proxmox helper framework." >&2
+  exit 1
+fi
 
 # shellcheck source=/dev/null
 source /dev/stdin <<<"$FUNCTIONS_FILE_PATH"
@@ -27,6 +33,7 @@ PHP_VERSION="8.4"
 PHP_FPM_SERVICE="php8.4-fpm"
 
 msg_info "Installing dependencies"
+$STD apt-get update -y
 $STD apt-get install -y \
   ca-certificates \
   curl \
@@ -91,8 +98,11 @@ REPO_URL="https://github.com/stevenbuehner/php-ical-filter-proxy.git"
 DEPLOY_REF_MODE="${DEPLOY_REF_MODE:-stable-tag}"
 PHP_VERSION="8.4"
 PHP_FPM_SERVICE="php8.4-fpm"
+BACKUP_FILE="$(mktemp /tmp/calendars.yaml.XXXXXX.bak)"
+cleanup() { rm -f "$BACKUP_FILE"; }
+trap cleanup EXIT
 
-cd "$APP_DIR"
+cd "$APP_DIR" || exit 1
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get install -y --no-install-recommends \
@@ -110,7 +120,7 @@ if [[ -z "$LATEST_REF" ]]; then
   exit 1
 fi
 
-cp -f config/calendars.yaml /tmp/calendars.yaml.bak 2>/dev/null || true
+cp -f config/calendars.yaml "$BACKUP_FILE" 2>/dev/null || true
 git fetch --tags origin
 git checkout -f "$LATEST_REF"
 composer install --no-dev --prefer-dist --optimize-autoloader
@@ -118,7 +128,7 @@ mkdir -p var/cache/feeds var/cache/exports var/log
 chown -R "$APP_USER":"$APP_GROUP" "$APP_DIR"
 chmod -R u=rwX,g=rX,o= "$APP_DIR"
 chmod -R u=rwX,g=rwX,o= "$APP_DIR/var"
-cp -f /tmp/calendars.yaml.bak config/calendars.yaml 2>/dev/null || true
+cp -f "$BACKUP_FILE" config/calendars.yaml 2>/dev/null || true
 php bin/console app:config:validate >/dev/null 2>&1 || true
 systemctl reload nginx >/dev/null 2>&1 || true
 systemctl reload "$PHP_FPM_SERVICE" >/dev/null 2>&1 || true
@@ -154,6 +164,11 @@ ln -sf "$NGINX_SITE" "/etc/nginx/sites-enabled/${APP_SLUG}.conf"
 rm -f /etc/nginx/sites-enabled/default
 
 msg_info "Configuring php-fpm pool"
+if [[ ! -d "/etc/php/${PHP_VERSION}/fpm/pool.d" ]]; then
+  msg_error "Missing php-fpm pool directory for PHP ${PHP_VERSION}"
+  exit 1
+fi
+
 cat > "/etc/php/${PHP_VERSION}/fpm/pool.d/${APP_SLUG}.conf" <<EOF_FPM
 [${APP_SLUG}]
 user = ${APP_USER}
@@ -170,10 +185,11 @@ chdir = ${APP_DIR}
 EOF_FPM
 msg_ok "Configured php-fpm"
 
+nginx -t
 systemctl enable -q --now "$PHP_FPM_SERVICE"
 systemctl enable -q --now nginx
-nginx -t
-systemctl reload nginx
+systemctl restart "$PHP_FPM_SERVICE"
+systemctl restart nginx
 
 motd_ssh
 customize
