@@ -12,11 +12,11 @@ sources:
           description:
             not_contains: "öffentlich"
 
-      - name: "Nur künftige Termine ab heute behalten"
+      - name: "Nur Einträge mit Datum im aktuellen Jahr"
         action: keep
         match:
-          date:
-            from: "now"
+          summary:
+            regex: "/20(2[6-9]|3[0-9])/"
 
       - name: "Leere URL ergänzen und Titel vereinheitlichen"
         action: keep
@@ -63,12 +63,11 @@ sources:
     url: "https://example.org/events.ics"
     cache_ttl: "30m"
     filters:
-      - name: "Nur die nächsten 12 Monate"
+      - name: "Nur Events mit Jahr im Titel (2026+)"
         action: keep
         match:
-          date:
-            from: "now"
-            until: "+12 months"
+          summary:
+            regex: "/20(2[6-9]|3[0-9])/"
 
       - name: "Kategorien ergänzen und Beschreibung markieren"
         action: keep
