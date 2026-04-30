@@ -108,11 +108,6 @@ final class ExportPreviewCommand extends Command
             $successfulSources++;
             $eventsBefore += count($events);
 
-            $sourceConfig = $config->sources[$include->source] ?? null;
-            if ($sourceConfig !== null && $sourceConfig->filters !== []) {
-                $events = $filterEngine->apply($events, $sourceConfig->filters)->filteredEvents;
-            }
-
             if ($include->filters !== []) {
                 $events = $filterEngine->apply($events, $include->filters)->filteredEvents;
             }

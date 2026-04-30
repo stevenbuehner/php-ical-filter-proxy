@@ -11,3 +11,4 @@
 
 # Local runtime config (keep only examples in git)
 /config/calendars.yaml
+var/cache/tmp-preview

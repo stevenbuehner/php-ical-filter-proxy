@@ -8,7 +8,11 @@ use App\Cache\CacheKeyBuilder;
 use App\Cache\FileCache;
 use App\Cache\TtlParser;
 use App\Config\Dto\SourceConfig;
+use App\Filter\FilterEngine;
+use App\Filter\MatchEvaluator;
+use App\Filter\TransformEngine;
 use App\Http\Logger\LoggerInterface;
+use Sabre\VObject\Component\VCalendar;
 use Symfony\Contracts\HttpClient\Exception\ExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
@@ -38,7 +42,7 @@ final readonly class FeedFetcher
         $requests = [];
 
         foreach ($sources as $sourceKey => $sourceConfig) {
-            $cacheKey = $this->cacheKeyBuilder->forSourceUrl($sourceConfig->url);
+            $cacheKey = $this->cacheKeyBuilder->forSourceConfig($sourceConfig);
             $this->logger->info('feed_fetch_start', ['source' => $sourceKey, 'url' => $sourceConfig->url]);
 
             if ($this->sourceCache->isFresh($cacheKey)) {
@@ -119,10 +123,11 @@ final readonly class FeedFetcher
                 return $this->fallbackWithStaleCache($sourceKey, $cacheKey, sprintf('Feed exceeds max size (%d bytes).', self::MAX_FEED_BYTES));
             }
 
+            $normalizedContent = $this->applySourceFilters($content, $sourceConfig);
             $ttl = $this->resolveTtlSeconds($sourceConfig->cacheTtl);
-            $this->sourceCache->set($cacheKey, $content, $ttl);
+            $this->sourceCache->set($cacheKey, $normalizedContent, $ttl);
 
-            return new FeedFetchResult($sourceKey, $content, false, null);
+            return new FeedFetchResult($sourceKey, $normalizedContent, false, null);
         } catch (ExceptionInterface | \RuntimeException | \InvalidArgumentException $exception) {
             $this->logger->error('feed_fetch_exception', ['source' => $sourceKey, 'message' => $exception->getMessage()]);
             return $this->fallbackWithStaleCache($sourceKey, $cacheKey, $exception->getMessage());
@@ -146,5 +151,24 @@ final readonly class FeedFetcher
         }
 
         return new FeedFetchResult($sourceKey, null, false, $error);
+    }
+
+    private function applySourceFilters(string $content, SourceConfig $sourceConfig): string
+    {
+        if ($sourceConfig->filters === []) {
+            return $content;
+        }
+
+        $parser = new CalendarParser();
+        $calendar = $parser->parse($content);
+        $events = $parser->extractEvents($calendar);
+        $filtered = (new FilterEngine(new MatchEvaluator(), new TransformEngine()))->apply($events, $sourceConfig->filters);
+
+        $result = new VCalendar();
+        foreach ($filtered->filteredEvents as $event) {
+            $result->add(clone $event->originalEvent);
+        }
+
+        return $result->serialize();
     }
 }

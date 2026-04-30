@@ -69,6 +69,11 @@ final readonly class ExportBuilder
 
         $dedup = [];
         $calendar = new VCalendar();
+        if (trim($export->title) !== '') {
+            $calendar->add('X-WR-CALNAME', $export->title);
+            $calendar->add('NAME', $export->title);
+        }
+
         foreach ($events as $event) {
             $uid = $event->uid ?? '';
             if ($uid !== '') {
