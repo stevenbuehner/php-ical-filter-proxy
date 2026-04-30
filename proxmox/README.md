@@ -10,7 +10,7 @@ Diese Anleitung installiert **PHP Ical Filter Proxy** als LXC auf Proxmox VE.
 Führe den folgenden Befehl direkt auf dem **Proxmox-Host** aus:
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/stevenbuehner/php-ical-filter-proxy/main/proxmox/php-ical-filter-proxy.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/stevenbuehner/php-ical-filter-proxy/refs/heads/master/proxmox/php-ical-filter-proxy.sh)"
 ```
 
 Das Skript erstellt den LXC und installiert die Anwendung automatisch.

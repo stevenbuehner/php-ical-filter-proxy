@@ -2,7 +2,7 @@
 
 # Copyright (c) 2021-2026 Steven Buehner
 # Author: Steven Buehner
-# License: MIT | https://github.com/stevenbuehner/php-ical-filter-proxy/raw/main/LICENSE
+# License: MIT | https://github.com/stevenbuehner/php-ical-filter-proxy/raw/refs/heads/master/LICENSE
 # Source: https://github.com/stevenbuehner/php-ical-filter-proxy
 
 # shellcheck source=/dev/null

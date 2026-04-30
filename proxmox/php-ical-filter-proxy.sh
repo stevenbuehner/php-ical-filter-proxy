@@ -3,7 +3,7 @@
 source <(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/build.func)
 # Copyright (c) 2021-2026 Steven Buehner
 # Author: Steven Buehner
-# License: MIT | https://github.com/stevenbuehner/php-ical-filter-proxy/raw/main/LICENSE
+# License: MIT | https://github.com/stevenbuehner/php-ical-filter-proxy/raw/refs/heads/master/LICENSE
 # Source: https://github.com/stevenbuehner/php-ical-filter-proxy
 
 APP="PHP Ical Filter Proxy"

@@ -25,7 +25,7 @@ composer install
 Für die direkte Installation als LXC auf einem Proxmox-Host:
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/stevenbuehner/php-ical-filter-proxy/main/proxmox/php-ical-filter-proxy.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/stevenbuehner/php-ical-filter-proxy/refs/heads/master/proxmox/php-ical-filter-proxy.sh)"
 ```
 
 Standardwerte des CT-Skripts:
