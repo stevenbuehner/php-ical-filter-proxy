@@ -3,10 +3,22 @@
 
 declare(strict_types=1);
 
+use App\Command\ExportPreviewCommand;
+use App\Command\ListExportsCommand;
+use App\Command\ListSourcesCommand;
+use App\Command\ValidateConfigCommand;
+use App\Command\WarmCacheCommand;
 use Symfony\Component\Console\Application;
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
 
+$projectRoot = dirname(__DIR__);
+
 $application = new Application('iCal Proxy & Filter Service', '0.1.0');
+$application->add(new ValidateConfigCommand($projectRoot));
+$application->add(new WarmCacheCommand($projectRoot));
+$application->add(new ListSourcesCommand($projectRoot));
+$application->add(new ListExportsCommand($projectRoot));
+$application->add(new ExportPreviewCommand($projectRoot));
 
 $application->run();

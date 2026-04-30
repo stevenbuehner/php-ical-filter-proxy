@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\CalendarController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Matcher\UrlMatcher;
@@ -15,6 +16,7 @@ $request = Request::createFromGlobals();
 
 $routes = new RouteCollection();
 $routes->add('health', new Route('/health'));
+$routes->add('feed_public', new Route('/feed/{slug}/{token}.ics'));
 
 $context = (new RequestContext())->fromRequest($request);
 $matcher = new UrlMatcher($routes, $context);
@@ -27,6 +29,13 @@ try {
             'status' => 'ok',
             'service' => 'php-ical-filter-proxy',
         ]))->send();
+        return;
+    }
+
+    if (($parameters['_route'] ?? null) === 'feed_public') {
+        $controller = new CalendarController(dirname(__DIR__));
+        $response = $controller->feed((string) $parameters['slug'], (string) $parameters['token']);
+        $response->send();
         return;
     }
 
