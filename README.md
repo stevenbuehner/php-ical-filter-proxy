@@ -137,6 +137,85 @@ Unterstützte Datumswerte:
 - relative Angaben wie `+12 months`, `-7 days`
 - absolute Form `YYYY-MM-DD`
 
+Beispiele pro Operator:
+
+`contains`
+```yaml
+match:
+  summary:
+    contains: "Technik"
+```
+
+`contains_any`
+```yaml
+match:
+  summary:
+    contains_any: ["Technik", "Ton", "Licht"]
+```
+
+`contains_all`
+```yaml
+match:
+  summary:
+    contains_all: ["Technik", "Probe"]
+```
+
+`not_contains`
+```yaml
+match:
+  description:
+    not_contains: "intern"
+```
+
+`equals`
+```yaml
+match:
+  location:
+    equals: "Kirche"
+```
+
+```yaml
+match:
+  categories:
+    equals: ["Technik", "Dienst"]
+```
+
+`not_equals`
+```yaml
+match:
+  summary:
+    not_equals: "Abgesagt"
+```
+
+`regex`
+```yaml
+match:
+  summary:
+    regex: "/^(Technik|Medien)/i"
+```
+
+`empty`
+```yaml
+match:
+  url:
+    empty: true
+```
+
+Datum (`from`, `until`)
+```yaml
+match:
+  date:
+    from: "2026-01-01"
+    until: "2026-12-31"
+```
+
+```yaml
+match:
+  date:
+    from: "now"
+    until: "+12 months"
+```
+
 ## 12. Erklärung Transformations
 Transformationen laufen nach erfolgreichem Match einer Regel.
 
