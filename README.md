@@ -21,7 +21,27 @@ Installation:
 composer install
 ```
 
-## 3. Lokale Entwicklung
+## 3. Proxmox VE Installation (Direkt)
+Für die direkte Installation als LXC auf einem Proxmox-Host:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/stevenbuehner/php-ical-filter-proxy/main/ct/php-ical-filter-proxy.sh)"
+```
+
+Standardwerte des CT-Skripts:
+- Debian 13
+- Unprivileged LXC
+- 1 vCPU
+- 1024 MB RAM
+- 8 GB Disk
+
+Update im Container ausführen:
+
+```bash
+/opt/php-ical-filter-proxy/scripts/update.sh
+```
+
+## 4. Lokale Entwicklung
 HTTP-Server starten:
 ```bash
 php -S 127.0.0.1:8080 -t public
@@ -32,7 +52,7 @@ Konfiguration prüfen:
 php bin/console app:config:validate
 ```
 
-## 4. Beispiel für Kalender-Export-URL
+## 5. Beispiel für Kalender-Export-URL
 Öffentlicher Feed-Endpunkt:
 ```text
 GET /feed/{slug}/{token}.ics
@@ -43,7 +63,7 @@ Beispiel:
 http://127.0.0.1:8080/feed/technikdienst/random-secret-token.ics
 ```
 
-## 5. Vollständige YAML-Referenz
+## 6. Vollständige YAML-Referenz
 ```yaml
 sources:
   source_key:
@@ -77,7 +97,7 @@ exports:
                 value: "[Tech] "
 ```
 
-## 6. Erklärung Sources
+## 7. Erklärung Sources
 `sources` definiert externe Eingangsfeeds.
 
 Pro Source:
@@ -86,7 +106,7 @@ Pro Source:
 - `cache_ttl` optional (Format: `30s`, `15m`, `1h`, `1d`)
 - `filters` optional (werden vor Export-Ebene angewendet)
 
-## 7. Erklärung Exports
+## 8. Erklärung Exports
 `exports` definiert auszugebende Zielfeeds.
 
 Pro Export:
@@ -96,20 +116,20 @@ Pro Export:
 - `cache_ttl` optional
 - `include_sources` Pflicht (mindestens eine referenzierte Source)
 
-## 8. Erklärung Source-Filter
+## 9. Erklärung Source-Filter
 Source-Filter leben unter `sources.<key>.filters` und betreffen nur diese einzelne Quelle, bevor sie in Exporte eingeht.
 
-## 9. Erklärung Export-Filter
+## 10. Erklärung Export-Filter
 Export-Filter leben unter `exports.<key>.include_sources[].filters` und werden pro inkludierter Quelle im Kontext eines Exports angewendet.
 
-## 10. Erklärung action keep/remove
+## 11. Erklärung action keep/remove
 - `action: remove`: entferne alle Events, die matchen
 - `action: keep`: entferne alle Events, die **nicht** matchen
 - fehlt `action`, wird `remove` verwendet
 
 Regeln werden strikt in YAML-Reihenfolge ausgeführt.
 
-## 11. Erklärung Match-Operatoren
+## 12. Erklärung Match-Operatoren
 Unterstützte Felder:
 - `summary`
 - `description`
@@ -216,7 +236,7 @@ match:
     until: "+12 months"
 ```
 
-## 12. Erklärung Transformations
+## 13. Erklärung Transformations
 Transformationen laufen nach erfolgreichem Match einer Regel.
 
 Unterstützt:
@@ -228,7 +248,7 @@ Hinweis:
 - Bei `action: keep` sind Transformationen typischerweise relevant
 - Bei `action: remove` werden gematchte Events entfernt, daher ist Transform dort praktisch meist ohne Effekt
 
-## 13. Caching-Konzept
+## 14. Caching-Konzept
 Zwei Ebenen:
 - Source-Cache (`var/cache/feeds`): rohe ICS-Inhalte pro externer Quelle
 - Export-Cache (`var/cache/exports`): fertige serialisierte Export-Feeds
@@ -237,7 +257,7 @@ Fallback-Verhalten:
 - bei HTTP-Fehlern wird (wenn vorhanden) veralteter Source-Cache verwendet
 - wenn keine Quelle erfolgreich verarbeitet werden kann, liefert der HTTP-Endpunkt `503`
 
-## 14. CLI-Befehle
+## 15. CLI-Befehle
 Konfiguration:
 ```bash
 php bin/console app:config:validate
@@ -264,19 +284,19 @@ php bin/console app:export:preview technikdienst --limit=20
 php bin/console app:export:preview technikdienst --limit=20 --no-cache
 ```
 
-## 15. Fehlerbehandlung
+## 16. Fehlerbehandlung
 - Konfigurationsfehler: hart abbrechen
 - Runtime-Fehler einzelner Quellen: loggen und nach Möglichkeit mit anderen Quellen fortfahren
 - Ungültige Quellen blockieren nicht automatisch den gesamten Export
 - HTTP-Endpunkt gibt keine sensiblen Interna aus
 
-## 16. Geplante Admin-GUI
+## 17. Geplante Admin-GUI
 Die Struktur ist bereits auf spätere GUI-Erweiterung vorbereitet:
 - serialisierbare DTOs
 - klar getrennte Layer (Config, Calendar, Filter, Cache, Http)
 - bestehende CLI-Funktionen als Grundlage für GUI-Aktionen
 
-## 17. Sicherheitshinweise zu Tokens
+## 18. Sicherheitshinweise zu Tokens
 - Tokens schützen öffentliche Feed-URLs
 - Tokens niemals in Logs, Tickets oder Screenshots teilen
 - pro Export unterschiedliche, starke, zufällige Tokens nutzen
