@@ -267,8 +267,17 @@ final readonly class ConfigValidator
                         continue;
                     }
 
-                    if ($op === 'regex' && (!is_string($value) || $value === '' || @preg_match($value, '') === false)) {
-                        $errors[] = new ValidationError('invalid_value', 'Regex pattern is invalid.', $matchPath . '.regex', 'valid PCRE pattern', is_string($value) ? $value : gettype($value));
+                    if ($op === 'regex') {
+                        $regexError = $this->validatePcrePattern($value);
+                        if ($regexError !== null) {
+                            $errors[] = new ValidationError(
+                                'invalid_value',
+                                'Regex pattern is invalid: ' . $regexError,
+                                $matchPath . '.regex',
+                                'valid PCRE pattern',
+                                is_string($value) ? $value : gettype($value)
+                            );
+                        }
                     }
                 }
             }
@@ -345,8 +354,9 @@ final readonly class ConfigValidator
 
             if ($type === 'replace_regex') {
                 $pattern = (string) ($transform['pattern'] ?? '');
-                if ($pattern === '' || @preg_match($pattern, '') === false) {
-                    $errors[] = new ValidationError('invalid_value', 'Regex pattern is invalid.', $transformPath . '.pattern', 'valid PCRE pattern', $pattern);
+                $regexError = $this->validatePcrePattern($pattern);
+                if ($regexError !== null) {
+                    $errors[] = new ValidationError('invalid_value', 'Regex pattern is invalid: ' . $regexError, $transformPath . '.pattern', 'valid PCRE pattern', $pattern);
                 }
             }
         }
@@ -373,6 +383,32 @@ final readonly class ConfigValidator
             return [new ValidationError('invalid_value', 'TTL format is invalid.', $path, '30s|15m|1h|1d', $ttl)];
         }
         return [];
+    }
+
+    private function validatePcrePattern(mixed $pattern): ?string
+    {
+        if (!is_string($pattern) || $pattern === '') {
+            return 'Pattern must be a non-empty string.';
+        }
+
+        set_error_handler(static fn (): bool => true);
+        try {
+            $result = preg_match($pattern, '');
+        } finally {
+            restore_error_handler();
+        }
+
+        if ($result === false) {
+            $errorMessage = function_exists('preg_last_error_msg') ? preg_last_error_msg() : null;
+            if (is_string($errorMessage) && $errorMessage !== '') {
+                return $errorMessage;
+            }
+
+            $errorCode = preg_last_error();
+            return 'preg_match failed with error code ' . $errorCode . '.';
+        }
+
+        return null;
     }
 
     /** @return list<ValidationError> */

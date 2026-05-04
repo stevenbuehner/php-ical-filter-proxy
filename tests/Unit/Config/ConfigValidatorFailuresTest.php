@@ -49,6 +49,7 @@ YAML);
         $codes = array_map(static fn ($e): string => $e->code, $errors);
         $messages = array_map(static fn ($e): string => $e->message, $errors);
         $paths = array_map(static fn ($e): string => $e->path, $errors);
+        $pcreError = $this->capturePcreError('/*invalid');
 
         self::assertContains('unknown_key', $codes);
         self::assertContains('invalid_value', $codes);
@@ -57,6 +58,7 @@ YAML);
         self::assertContains('exports.e1.include_sources[0].filters[0].match.summary.regex', $paths);
         self::assertContains('Unknown key.', $messages);
         self::assertContains('TTL format is invalid.', $messages);
+        self::assertTrue(array_reduce($messages, static fn (bool $carry, string $message): bool => $carry || str_contains($message, 'Regex pattern is invalid: ' . $pcreError), false));
     }
 
     public function testTimeTransformValidationReportsBadReferenceAndOffset(): void
@@ -176,5 +178,17 @@ YAML);
 
         self::assertContains('Unsupported transform type.', $messages);
         self::assertContains('exports.e1.include_sources[0].filters[0].transform[0].type', $paths);
+    }
+
+    private function capturePcreError(string $pattern): string
+    {
+        set_error_handler(static fn (): bool => true);
+        try {
+            preg_match($pattern, '');
+        } finally {
+            restore_error_handler();
+        }
+
+        return preg_last_error_msg();
     }
 }
