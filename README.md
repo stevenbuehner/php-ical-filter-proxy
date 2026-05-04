@@ -21,27 +21,7 @@ Installation:
 composer install
 ```
 
-## 3. Proxmox VE Installation (Direkt)
-Für die direkte Installation als LXC auf einem Proxmox-Host:
-
-```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/stevenbuehner/php-ical-filter-proxy/refs/heads/master/proxmox/php-ical-filter-proxy.sh)"
-```
-
-Standardwerte des CT-Skripts:
-- Debian 13
-- Unprivileged LXC
-- 1 vCPU
-- 1024 MB RAM
-- 8 GB Disk
-
-Update im Container ausführen:
-
-```bash
-/opt/php-ical-filter-proxy/scripts/update.sh
-```
-
-## 4. Lokale Entwicklung
+## 3. Lokale Entwicklung
 HTTP-Server starten:
 ```bash
 php -S 127.0.0.1:8080 -t public
@@ -52,7 +32,7 @@ Konfiguration prüfen:
 php bin/console app:config:validate
 ```
 
-## 5. Beispiel für Kalender-Export-URL
+## 4. Beispiel für Kalender-Export-URL
 Öffentlicher Feed-Endpunkt:
 ```text
 GET /feed/{SECRET}/{SLUG}.ics
@@ -63,7 +43,7 @@ Beispiel:
 http://127.0.0.1:8080/feed/random-secret-token/technikdienst.ics
 ```
 
-## 6. Vollständige YAML-Referenz
+## 5. Vollständige YAML-Referenz
 Die Konfiguration ist hierarchisch aufgebaut:
 - `sources` beschreibt die Eingangsfeeds
 - `exports` beschreibt die auszuliefernden Feeds
@@ -110,7 +90,7 @@ Wichtig:
 - `on_match` entscheidet, was nach einem Treffer passiert
 - `transform` wird nur genutzt, wenn `on_match: transform` gesetzt ist
 
-## 7. Der Regel-Dreischritt
+## 6. Der Regel-Dreischritt
 Eine Filterregel besteht immer aus drei Ebenen:
 
 1. `type` bzw. der Filtertyp
@@ -136,7 +116,7 @@ Das bedeutet:
 - `on_match: transform` sagt, dass bei Treffer transformiert werden soll
 - `transform` enthält die konkrete Änderung
 
-## 8. Erklärung Sources
+## 7. Erklärung Sources
 `sources` definiert externe Eingangsfeeds.
 
 Pro Source:
@@ -145,7 +125,7 @@ Pro Source:
 - `cache_ttl` optional (Format: `30s`, `15m`, `1h`, `1d`)
 - `filters` optional (werden vor Export-Ebene angewendet)
 
-## 9. Erklärung Exports
+## 8. Erklärung Exports
 `exports` definiert auszugebende Zielfeeds.
 
 Pro Export:
@@ -156,13 +136,13 @@ Pro Export:
 - `include_sources` Pflicht (mindestens eine referenzierte Source)
 - `filters` pro Included Source arbeiten mit `type`, `match`, `on_match` und optional `transform`
 
-## 10. Erklärung Source-Filter
+## 9. Erklärung Source-Filter
 Source-Filter leben unter `sources.<key>.filters` und betreffen nur diese einzelne Quelle, bevor sie in Exporte eingeht.
 
-## 11. Erklärung Export-Filter
+## 10. Erklärung Export-Filter
 Export-Filter leben unter `exports.<key>.include_sources[].filters` und werden pro inkludierter Quelle im Kontext eines Exports angewendet.
 
-## 12. Erklärung Filter-Verhalten
+## 11. Erklärung Filter-Verhalten
 - `on_match: remove`: entferne alle Events, die matchen
 - `on_match: keep`: behalte Events unverändert
 - `on_match: transform`: führe `transform[]` aus und behalte das Event
@@ -170,7 +150,7 @@ Export-Filter leben unter `exports.<key>.include_sources[].filters` und werden p
 
 Regeln werden strikt in YAML-Reihenfolge ausgeführt. Mehrere Bedingungen innerhalb eines `match`-Blocks sind mit `AND` verknüpft.
 
-## 13. Erklärung Match-Operatoren
+## 12. Erklärung Match-Operatoren
 Ein `match`-Filter prüft ein oder mehrere Felder eines Events. Die Felder werden mit den angegebenen Operatoren verglichen.
 
 Unterstützte Felder:
@@ -279,7 +259,7 @@ match:
     until: "+12 months"
 ```
 
-## 14. Erklärung Transformations
+## 13. Erklärung Transformations
 Transformationen laufen nach erfolgreichem Match einer Regel und werden als Liste von `type`-Einträgen angegeben.
 
 Unterstützt:
@@ -428,7 +408,7 @@ filters:
         field: url
 ```
 
-## 15. Event Migration pro Export
+## 14. Event Migration pro Export
 Mit `event_migration` können sich überschneidende oder zeitlich nahe Events innerhalb eines Exports zu einem gemeinsamen Termin zusammengeführt werden.
 
 Die Migration läuft:
@@ -476,7 +456,7 @@ Standardstrategie `merge_titles_csv`:
 - `url`: erste verfügbare URL
 - `uid`: deterministisch neu erzeugt
 
-## 16. Caching-Konzept
+## 15. Caching-Konzept
 Zwei Ebenen:
 - Source-Cache (`var/cache/feeds`): normalisierte Source-Feeds nach Anwendung von `sources.<id>.filters` inkl. Transformationen
 - Export-Cache (`var/cache/exports`): fertige serialisierte Export-Feeds
@@ -485,7 +465,7 @@ Fallback-Verhalten:
 - bei HTTP-Fehlern wird, wenn vorhanden, veralteter normalisierter Source-Cache verwendet
 - wenn keine Quelle erfolgreich verarbeitet werden kann, liefert der HTTP-Endpunkt `503`
 
-## 17. CLI-Befehle
+## 16. CLI-Befehle
 Konfiguration:
 ```bash
 php bin/console app:config:validate
@@ -526,26 +506,26 @@ php bin/console app:cache:prune --scope=feeds --age=3d
 php bin/console app:cache:prune --scope=all --age=12h
 ```
 
-## 18. Fehlerbehandlung
+## 17. Fehlerbehandlung
 - Konfigurationsfehler: hart abbrechen
 - Runtime-Fehler einzelner Quellen: loggen und nach Möglichkeit mit anderen Quellen fortfahren
 - Ungültige Quellen blockieren nicht automatisch den gesamten Export
 - HTTP-Endpunkt gibt keine sensiblen Interna aus
 
-## 19. Geplante Admin-GUI
+## 18. Geplante Admin-GUI
 Die Struktur ist bereits auf spätere GUI-Erweiterung vorbereitet:
 - serialisierbare DTOs
 - klar getrennte Layer (Config, Calendar, Filter, Cache, Http)
 - bestehende CLI-Funktionen als Grundlage für GUI-Aktionen
 
-## 20. Sicherheitshinweise zu Tokens
+## 19. Sicherheitshinweise zu Tokens
 - Tokens schützen öffentliche Feed-URLs
 - Tokens niemals in Logs, Tickets oder Screenshots teilen
 - pro Export unterschiedliche, starke, zufällige Tokens nutzen
 - kompromittierte Tokens sofort rotieren
 - bei ungültigem `slug/token` wird bewusst `404` geliefert, um Exporte nicht zu leaken
 
-## 21. Typische Fehlerquellen
+## 20. Typische Fehlerquellen
 - `slug` und `token` müssen eindeutig bzw. nicht leer sein.
 - `cache_ttl` muss im Format wie `30s`, `15m`, `1h` oder `1d` angegeben werden.
 - `regex`-Pattern müssen gültige PCRE-Ausdrücke sein.

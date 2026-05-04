@@ -34,26 +34,3 @@ jobs:
 
       - name: Run PHPUnit
         run: vendor/bin/phpunit
-
-  proxmox-e2e:
-    name: Proxmox E2E (Self-Hosted)
-    runs-on: [self-hosted, proxmox]
-    if: github.event_name == 'workflow_dispatch'
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Verify Proxmox tooling
-        run: |
-          command -v pct
-          command -v pvesh
-
-      - name: Run CT script smoke test
-        run: |
-          bash -n proxmox/php-ical-filter-proxy.sh
-          bash -n proxmox/php-ical-filter-proxy-install.sh
-
-      - name: E2E placeholder
-        run: |
-          echo "Implement pct-based create/install/update/destroy flow on this runner."

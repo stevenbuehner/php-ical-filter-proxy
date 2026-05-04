@@ -18,27 +18,6 @@ permissions:
   contents: read
 
 jobs:
-  proxmox-script-checks:
-    name: Proxmox script checks
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Install shell tooling
-        run: sudo apt-get update && sudo apt-get install -y shellcheck
-
-      - name: Bash syntax check
-        run: |
-          bash -n proxmox/php-ical-filter-proxy.sh
-          bash -n proxmox/php-ical-filter-proxy-install.sh
-
-      - name: Shellcheck
-        run: |
-          shellcheck proxmox/php-ical-filter-proxy.sh
-          shellcheck proxmox/php-ical-filter-proxy-install.sh
-
   phpunit:
     name: PHPUnit (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
