@@ -180,6 +180,46 @@ YAML);
         self::assertContains('exports.e1.include_sources[0].filters[0].transform[0].type', $paths);
     }
 
+    public function testValidatorRejectsInvalidExportFilters(): void
+    {
+        $configFile = tempnam(sys_get_temp_dir(), 'cfgexportfilters_');
+        self::assertNotFalse($configFile);
+
+        file_put_contents($configFile, <<<'YAML'
+sources:
+  s1:
+    url: "https://example.com/a.ics"
+exports:
+  e1:
+    title: "Export"
+    slug: "e1"
+    token: "secret"
+    filters:
+      - type: match
+        match:
+          summary:
+            regex: "/*invalid"
+        on_match: transform
+        transform:
+          - type: replace_regex
+            field: summary
+            pattern: "/*invalid"
+            replacement: "x"
+    include_sources:
+      - source: s1
+YAML);
+
+        $cacheRoot = sys_get_temp_dir() . '/ical_cache_' . uniqid('', true);
+        mkdir($cacheRoot . '/feeds', 0777, true);
+        mkdir($cacheRoot . '/exports', 0777, true);
+
+        $errors = (new ConfigValidator())->validateFile($configFile, $cacheRoot . '/feeds', $cacheRoot . '/exports');
+        $paths = array_map(static fn ($e): string => $e->path, $errors);
+
+        self::assertContains('exports.e1.filters[0].match.summary.regex', $paths);
+        self::assertContains('exports.e1.filters[0].transform[0].pattern', $paths);
+    }
+
     private function capturePcreError(string $pattern): string
     {
         set_error_handler(static fn (): bool => true);

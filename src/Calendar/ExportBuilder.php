@@ -62,6 +62,12 @@ final readonly class ExportBuilder
             }
         }
 
+        if ($export->filters !== []) {
+            $filtered = $filterEngine->apply($events, $export->filters);
+            $this->logger->info('filter_statistics', ['scope' => 'export', 'slug' => $export->slug, 'stats' => $filtered->statistics]);
+            $events = $filtered->filteredEvents;
+        }
+
         $events = $migrationEngine->migrate($events, $export, $export->eventMigration);
 
         if ($successfulSources === 0) {

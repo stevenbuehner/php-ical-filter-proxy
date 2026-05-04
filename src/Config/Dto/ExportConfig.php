@@ -8,6 +8,7 @@ final readonly class ExportConfig
 {
     /**
      * @param list<IncludedSourceConfig> $includeSources
+     * @param list<FilterRuleConfig> $filters
      * @param array<string, mixed> $extra
      */
     public function __construct(
@@ -17,6 +18,7 @@ final readonly class ExportConfig
         public string $token,
         public string $cacheTtl,
         public array $includeSources,
+        public array $filters = [],
         public ?EventMigrationConfig $eventMigration = null,
         public array $extra = [],
     ) {
@@ -34,6 +36,15 @@ final readonly class ExportConfig
             $includeSources[] = IncludedSourceConfig::fromArray($includedSourceRaw);
         }
 
+        $filtersRaw = is_array($data['filters'] ?? null) ? $data['filters'] : [];
+        $filters = [];
+        foreach ($filtersRaw as $filterRaw) {
+            if (!is_array($filterRaw)) {
+                continue;
+            }
+            $filters[] = FilterRuleConfig::fromArray($filterRaw);
+        }
+
         $eventMigration = is_array($data['event_migration'] ?? null) ? EventMigrationConfig::fromArray($data['event_migration']) : null;
 
         return new self(
@@ -43,8 +54,9 @@ final readonly class ExportConfig
             token: (string) ($data['token'] ?? ''),
             cacheTtl: (string) ($data['cache_ttl'] ?? ''),
             includeSources: $includeSources,
+            filters: $filters,
             eventMigration: $eventMigration,
-            extra: self::extra($data, ['title', 'slug', 'token', 'cache_ttl', 'include_sources', 'event_migration']),
+            extra: self::extra($data, ['title', 'slug', 'token', 'cache_ttl', 'include_sources', 'filters', 'event_migration']),
         );
     }
 
@@ -59,6 +71,10 @@ final readonly class ExportConfig
             'include_sources' => array_map(
                 static fn (IncludedSourceConfig $include): array => $include->toArray(),
                 $this->includeSources
+            ),
+            'filters' => array_map(
+                static fn (FilterRuleConfig $filter): array => $filter->toArray(),
+                $this->filters
             ),
             'event_migration' => $this->eventMigration?->toArray(),
             'extra' => $this->extra,

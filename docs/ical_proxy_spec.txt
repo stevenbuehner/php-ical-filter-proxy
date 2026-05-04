@@ -69,6 +69,12 @@ exports:
     slug: "technikdienst"
     token: "random-string"
     cache_ttl: "10m"
+    filters:
+      - type: match
+        match:
+          summary:
+            contains: "Technik"
+        on_match: remove
 
     include_sources:
       - source: gemeinde
@@ -87,6 +93,7 @@ exports:
 - `on_match: transform` → führt `transform[]` aus
 - `match.any: true` → diese Regel trifft auf jedes Event zu
 - Mehrere Match-Felder innerhalb einer Regel sind per AND verknüpft
+- Export-Filter unter `exports.<key>.filters` wirken nach dem Merge aller `include_sources`
 
 7. Match-Operatoren
 contains, contains_any, contains_all, not_contains, regex, equals, empty

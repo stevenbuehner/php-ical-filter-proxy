@@ -69,6 +69,12 @@ exports:
     slug: "export-slug"
     token: "random-secret-token"
     cache_ttl: "10m"
+    filters:
+      - type: match
+        match:
+          summary:
+            contains: "Technik"
+        on_match: remove
     include_sources:
       - source: source_key
         filters:
@@ -134,13 +140,26 @@ Pro Export:
 - `token` Pflicht (Zugriffsschutz)
 - `cache_ttl` optional
 - `include_sources` Pflicht (mindestens eine referenzierte Source)
+- `filters` optional und wirken erst nach dem Merge aller `include_sources`
 - `filters` pro Included Source arbeiten mit `type`, `match`, `on_match` und optional `transform`
 
 ## 9. Erklärung Source-Filter
 Source-Filter leben unter `sources.<key>.filters` und betreffen nur diese einzelne Quelle, bevor sie in Exporte eingeht.
 
 ## 10. Erklärung Export-Filter
-Export-Filter leben unter `exports.<key>.include_sources[].filters` und werden pro inkludierter Quelle im Kontext eines Exports angewendet.
+Export-Filter leben unter `exports.<key>.filters` und werden nach dem Merge aller inkludierten Quellen auf den kompletten Export angewendet.
+
+Beispiel:
+```yaml
+exports:
+  export_key:
+    filters:
+      - type: match
+        match:
+          summary:
+            contains: "Technik"
+        on_match: remove
+```
 
 ## 11. Erklärung Filter-Verhalten
 - `on_match: remove`: entferne alle Events, die matchen

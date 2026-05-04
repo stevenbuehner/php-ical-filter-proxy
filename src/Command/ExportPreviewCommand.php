@@ -88,6 +88,7 @@ final class ExportPreviewCommand extends Command
 
         $eventsBefore = 0;
         $eventsAfter = 0;
+        $eventsAfterExportFilters = 0;
         $eventsAfterMigration = 0;
         $successfulSources = 0;
         $duplicatesRemoved = 0;
@@ -118,6 +119,12 @@ final class ExportPreviewCommand extends Command
             }
         }
 
+        if ($export->filters !== []) {
+            $filtered = $filterEngine->apply($finalEvents, $export->filters);
+            $finalEvents = $filtered->filteredEvents;
+        }
+        $eventsAfterExportFilters = count($finalEvents);
+
         $finalEvents = $migrationEngine->migrate($finalEvents, $export, $export->eventMigration);
         $eventsAfterMigration = count($finalEvents);
 
@@ -143,6 +150,7 @@ final class ExportPreviewCommand extends Command
         $io->writeln(sprintf('Sources: %d configured, %d successful', count($export->includeSources), $successfulSources));
         $io->writeln(sprintf('Events before filters: %d', $eventsBefore));
         $io->writeln(sprintf('Events after filters: %d', $eventsAfter));
+        $io->writeln(sprintf('Events after export filters: %d', $eventsAfterExportFilters));
         $io->writeln(sprintf('Events after migration: %d', $eventsAfterMigration));
         $io->writeln(sprintf('Duplicates removed: %d', $duplicatesRemoved));
         $io->writeln(sprintf('Events exported: %d', count($finalEvents)));

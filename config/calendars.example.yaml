@@ -104,6 +104,12 @@ exports:
     slug: "sonntag-technik"
     token: "random-secret-token"
     cache_ttl: "10m"
+    filters:
+      - type: match
+        match:
+          summary:
+            contains: "Absage"
+        on_match: remove
     include_sources:
       - source: technik
         filters:

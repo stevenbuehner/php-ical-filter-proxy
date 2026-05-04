@@ -12,7 +12,7 @@ use Symfony\Component\Yaml\Yaml;
 final readonly class ConfigValidator
 {
     private const SOURCE_ALLOWED_KEYS = ['label', 'url', 'cache_ttl', 'filters'];
-    private const EXPORT_ALLOWED_KEYS = ['title', 'slug', 'token', 'cache_ttl', 'include_sources', 'event_migration'];
+    private const EXPORT_ALLOWED_KEYS = ['title', 'slug', 'token', 'cache_ttl', 'include_sources', 'filters', 'event_migration'];
     private const INCLUDED_SOURCE_ALLOWED_KEYS = ['source', 'filters'];
     private const EVENT_MIGRATION_ALLOWED_KEYS = ['enabled', 'gap_tolerance', 'strategy'];
     private const EVENT_MIGRATION_STRATEGIES = ['merge_titles_csv'];
@@ -163,6 +163,10 @@ final readonly class ConfigValidator
 
             if (array_key_exists('event_migration', $exportData)) {
                 foreach ($this->validateEventMigration($exportData['event_migration'], $path . '.event_migration') as $e) { $errors[] = $e; }
+            }
+
+            if (array_key_exists('filters', $exportData)) {
+                foreach ($this->validateFilters($exportData['filters'], $path . '.filters') as $e) { $errors[] = $e; }
             }
 
             $include = $exportData['include_sources'] ?? null;
