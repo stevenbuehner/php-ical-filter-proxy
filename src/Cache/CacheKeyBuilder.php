@@ -39,6 +39,10 @@ final class CacheKeyBuilder
                 static fn ($include): array => $include->toArray(),
                 $exportConfig->includeSources
             ),
+            'filters' => array_map(
+                static fn ($filter): array => $filter->toArray(),
+                $exportConfig->filters
+            ),
             'event_migration' => $exportConfig->eventMigration?->toArray(),
         ];
 
