@@ -1,0 +1,12 @@
+filters:
+  - match
+
+transformations:
+  - prefix_text
+  - suffix_text
+  - replace_text
+  - replace_regex
+  - remove_property
+  - categories_add
+  - categories_remove
+  - adjust_times
