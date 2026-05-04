@@ -7,6 +7,7 @@ namespace App\Rule\Support;
 use App\Calendar\CalendarEvent;
 use App\Config\ValidationError;
 use App\Rule\Contract\FilterTypeInterface;
+use Closure;
 
 final readonly class CallableFilterType implements FilterTypeInterface
 {
@@ -16,8 +17,8 @@ final readonly class CallableFilterType implements FilterTypeInterface
      */
     public function __construct(
         private string $type,
-        private $validator,
-        private $matcher,
+        private Closure $validator,
+        private Closure $matcher,
     ) {
     }
 

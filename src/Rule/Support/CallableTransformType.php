@@ -7,6 +7,7 @@ namespace App\Rule\Support;
 use App\Calendar\CalendarEvent;
 use App\Config\ValidationError;
 use App\Rule\Contract\TransformTypeInterface;
+use Closure;
 
 final readonly class CallableTransformType implements TransformTypeInterface
 {
@@ -16,8 +17,8 @@ final readonly class CallableTransformType implements TransformTypeInterface
      */
     public function __construct(
         private string $type,
-        private $validator,
-        private $applier,
+        private Closure $validator,
+        private Closure $applier,
     ) {
     }
 
