@@ -15,7 +15,6 @@ final readonly class FilterRuleConfig
         public string $type,
         public array $match,
         public string $onMatch = 'keep',
-        public bool $stopProcessing = false,
         public array $transform = [],
         public array $extra = [],
     ) {
@@ -29,9 +28,8 @@ final readonly class FilterRuleConfig
             type: (string) ($data['type'] ?? 'match'),
             match: is_array($data['match'] ?? null) ? $data['match'] : [],
             onMatch: (string) ($data['on_match'] ?? 'keep'),
-            stopProcessing: self::toBool($data['stop_processing'] ?? false),
             transform: $transform,
-            extra: self::extra($data, ['type', 'match', 'on_match', 'stop_processing', 'transform']),
+            extra: self::extra($data, ['type', 'match', 'on_match', 'transform']),
         );
     }
 
@@ -41,17 +39,9 @@ final readonly class FilterRuleConfig
             'type' => $this->type,
             'match' => $this->match,
             'on_match' => $this->onMatch,
-            'stop_processing' => $this->stopProcessing,
             'transform' => $this->transform,
             'extra' => $this->extra,
         ];
-    }
-
-    private static function toBool(mixed $value): bool
-    {
-        $parsed = filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
-
-        return $parsed ?? false;
     }
 
     private static function extra(array $data, array $knownKeys): array

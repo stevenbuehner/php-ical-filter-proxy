@@ -33,8 +33,8 @@ final readonly class RuleRegistry
         $filters = [
             'match' => new CallableFilterType(
                 'match',
-                static fn (array $parameters): array => [],
-                static fn (CalendarEvent $event, array $parameters) use ($matchEvaluator): bool => $matchEvaluator->matches($event, $parameters)
+                fn (array $parameters): array => [],
+                fn (CalendarEvent $event, array $parameters): bool => $matchEvaluator->matches($event, $parameters)
             ),
         ];
 
@@ -42,13 +42,13 @@ final readonly class RuleRegistry
         foreach (['prefix_text', 'suffix_text', 'replace_text', 'replace_regex', 'remove_property', 'categories_add', 'categories_remove', 'adjust_times', 'modify_datetime'] as $type) {
             $transformations[$type] = new CallableTransformType(
                 $type,
-                static fn (array $parameters): array => [],
-                static function (CalendarEvent $event, array $parameters) use ($transformEngine, $type): void {
+                fn (array $parameters): array => [],
+                function (CalendarEvent $event, array $parameters) use ($transformEngine, $type): void {
                     $transformEngine->apply($event, new FilterRuleConfig(
                         type: 'match',
                         match: ['any' => true],
                         onMatch: 'transform',
-                        transform: array_merge([['type' => $type]], [$parameters]),
+                        transform: [array_merge(['type' => $type], $parameters)],
                     ));
                 }
             );

@@ -127,7 +127,6 @@ Export-Filter leben unter `exports.<key>.include_sources[].filters` und werden p
 - `on_match: remove`: entferne alle Events, die matchen
 - `on_match: keep`: behalte Events unverändert
 - `on_match: transform`: führe `transform[]` aus und behalte das Event
-- `stop_processing: true`: breche die weitere Verarbeitung für dieses Event ab
 
 Regeln werden strikt in YAML-Reihenfolge ausgeführt.
 

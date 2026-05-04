@@ -85,7 +85,6 @@ exports:
 - `on_match: remove` → entfernt passende Events
 - `on_match: keep` → behält passende Events unverändert
 - `on_match: transform` → führt `transform[]` aus
-- `stop_processing: true` bricht die Verarbeitung des betroffenen Events ab
 - Mehrere Match-Felder innerhalb einer Regel sind per AND verknüpft
 
 7. Match-Operatoren

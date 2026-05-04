@@ -17,7 +17,7 @@ final readonly class ConfigValidator
     private const EVENT_MIGRATION_ALLOWED_KEYS = ['enabled', 'gap_tolerance', 'strategy'];
     private const EVENT_MIGRATION_STRATEGIES = ['merge_titles_csv'];
     private const ALLOWED_FILTER_TYPES = ['match'];
-    private const ALLOWED_ON_MATCH = ['transform', 'remove', 'keep', 'stop_processing'];
+    private const ALLOWED_ON_MATCH = ['transform', 'remove', 'keep'];
     private const ALLOWED_TRANSFORM_TYPES = ['prefix_text', 'suffix_text', 'replace_text', 'replace_regex', 'remove_property', 'categories_add', 'categories_remove', 'adjust_times', 'modify_datetime'];
     private const ALLOWED_MATCH_FIELDS = ['any', 'summary', 'description', 'location', 'url', 'categories', 'date'];
     private const ALLOWED_MATCH_OPERATORS = ['contains', 'contains_any', 'contains_all', 'not_contains', 'equals', 'not_equals', 'regex', 'empty', 'from', 'until'];
@@ -217,7 +217,7 @@ final readonly class ConfigValidator
                 continue;
             }
 
-            foreach ($this->validateUnknownKeys($filter, ['type', 'match', 'on_match', 'stop_processing', 'transform'], $filterPath) as $e) { $errors[] = $e; }
+            foreach ($this->validateUnknownKeys($filter, ['type', 'match', 'on_match', 'transform'], $filterPath) as $e) { $errors[] = $e; }
 
             $type = strtolower(trim((string) ($filter['type'] ?? 'match')));
             if (!in_array($type, $registry->filters, true)) {

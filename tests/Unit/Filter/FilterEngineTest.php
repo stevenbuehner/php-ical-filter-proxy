@@ -53,34 +53,4 @@ final class FilterEngineTest extends TestCase
         self::assertSame('[ALL] Technikabend', $result->filteredEvents[2]->summary);
     }
 
-    public function testStopProcessingKeepsCurrentEventAndSkipsRemainingRules(): void
-    {
-        $ics = file_get_contents(__DIR__ . '/../../Fixtures/filter-summary.ics');
-        self::assertNotFalse($ics);
-        $events = (new CalendarParser())->parseEvents($ics);
-
-        $rules = [
-            new FilterRuleConfig(
-                type: 'match',
-                match: ['summary' => ['contains' => 'Technik']],
-                onMatch: 'transform',
-                stopProcessing: true,
-                transform: [
-                    ['type' => 'prefix_text', 'field' => 'summary', 'value' => '[STOP] '],
-                ],
-            ),
-            new FilterRuleConfig(
-                type: 'match',
-                match: ['summary' => ['contains' => 'STOP']],
-                onMatch: 'remove',
-            ),
-        ];
-
-        $result = (new FilterEngine())->apply($events, $rules);
-
-        self::assertCount(3, $result->filteredEvents);
-        self::assertStringStartsWith('[STOP]', $result->filteredEvents[0]->summary);
-        self::assertStringNotContainsString('STOP', $result->filteredEvents[1]->summary);
-        self::assertStringNotContainsString('STOP', $result->filteredEvents[2]->summary);
-    }
 }

@@ -9,6 +9,18 @@ use App\Config\Dto\FilterRuleConfig;
 
 final class TransformEngine
 {
+    /**
+     * Führt eine Liste von Transformationen auf einem Event aus.
+     *
+     * Die Transformationen werden in exakt der Reihenfolge aus der YAML-Datei
+     * verarbeitet. Dadurch können mehrere Änderungen auf dasselbe Event wirken,
+     * z. B. Textpräfix, Kategorieänderung und Zeitverschiebung in einem Schritt.
+     *
+     * Erwartung an die Eingabe:
+     * - die Regel wurde bereits validiert
+     * - nur bekannte Transform-Typen werden übergeben
+     * - die jeweilige Parameterstruktur passt zum Transform-Typ
+     */
     public function apply(CalendarEvent $event, FilterRuleConfig $rule): void
     {
         foreach ($rule->transform as $transform) {
@@ -17,6 +29,8 @@ final class TransformEngine
                 continue;
             }
 
+            // Jede konkrete Transformation ist bewusst als eigener Pfad
+            // implementiert, damit die Semantik pro Typ klar lesbar bleibt.
             $this->applyTransform($event, $type, $transform);
         }
     }
@@ -26,21 +40,28 @@ final class TransformEngine
      */
     private function applyTransform(CalendarEvent $event, string $type, array $transform): void
     {
+        // Zeitbezogene Anpassungen folgen einer eigenen Logik, weil sie nicht
+        // nur einen einzelnen Textwert ändern, sondern Start und Ende in
+        // Beziehung zueinander setzen.
         if (in_array($type, ['adjust_times'], true)) {
             $this->adjustTimes($event, $transform);
             return;
         }
 
+        // `modify_datetime` ist die einfache Einzel-Feld-Variante für start
+        // oder end, ohne Berechnung des Gegenfelds.
         if ($type === 'modify_datetime') {
             $this->modifyDateTime($event, $transform);
             return;
         }
 
+        // Kategorien werden als eigene Property behandelt, nicht als Textfeld.
         if ($type === 'categories_add' || $type === 'categories_remove') {
             $this->transformCategories($event, $type, $transform);
             return;
         }
 
+        // Texttransformationen arbeiten auf klassischen VEVENT-Feldern.
         $field = strtolower(trim((string) ($transform['field'] ?? '')));
         $property = match ($field) {
             'summary' => 'SUMMARY',
@@ -51,6 +72,7 @@ final class TransformEngine
         };
 
         if ($property === null) {
+            // remove_property darf auch auf frei benannte Property-Namen wirken.
             if ($type === 'remove_property' && $field !== '') {
                 $this->removeProperty($event, $field);
             }
@@ -59,6 +81,7 @@ final class TransformEngine
 
         $current = isset($event->originalEvent->{$property}) ? (string) $event->originalEvent->{$property} : '';
 
+        // Der konkrete Text-Operator bestimmt die Veränderung.
         $next = match ($type) {
             'prefix_text' => (string) ($transform['value'] ?? '') . $current,
             'suffix_text' => $current . (string) ($transform['value'] ?? ''),
@@ -82,6 +105,15 @@ final class TransformEngine
     }
 
     /**
+     * Kategorien werden als kommaseparierte ICS-Property geschrieben.
+     *
+     * Verwendung:
+     * - `categories_add`: Wert ergänzen, wenn noch nicht vorhanden
+     * - `categories_remove`: Wert fallunabhängig entfernen
+     *
+     * Wird am Ende keine Kategorie mehr übrig gelassen, wird die Property
+     * komplett entfernt.
+     *
      * @param array<string, mixed> $transform
      */
     private function transformCategories(CalendarEvent $event, string $type, array $transform): void
@@ -110,10 +142,25 @@ final class TransformEngine
     }
 
     /**
+     * Verschiebt DTSTART und DTEND gemeinsam.
+     *
+     * YAML-Form:
+     * - `start.reference`: `current_start` oder `current_end`
+     * - `start.offset`: z. B. `-20m`, `+10m`, `30s`, `2h`
+     * - `end.reference`: dieselben Referenzwerte
+     * - `end.offset`: dieselbe Offset-Syntax
+     *
+     * Regeln:
+     * - All-Day-Events werden ignoriert
+     * - DTEND darf nie vor DTSTART liegen
+     * - falls DURATION vorhanden ist, wird sie neu berechnet
+     *
      * @param array<string, mixed> $transform
      */
     private function adjustTimes(CalendarEvent $event, array $transform): void
     {
+        // All-Day-Events bleiben unangetastet, weil hier nur DATE-TIME-Logik
+        // erwartet wird und keine Tagesgrenzen verschoben werden sollen.
         if ($this->isAllDayEvent($event)) {
             return;
         }
@@ -127,9 +174,12 @@ final class TransformEngine
         $startSpec = is_array($transform['start'] ?? null) ? $transform['start'] : [];
         $endSpec = is_array($transform['end'] ?? null) ? $transform['end'] : [];
 
+        // Beide Seiten werden separat berechnet und können unterschiedliche
+        // Referenzen verwenden.
         $nextStart = $this->resolveAdjustedTime($currentStart, $currentStart, $currentEnd, $startSpec, 'current_start');
         $nextEnd = $this->resolveAdjustedTime($currentEnd, $currentStart, $currentEnd, $endSpec, 'current_end');
 
+        // Sicherheitsnetz: ein Endzeitpunkt darf nie vor dem Start liegen.
         if ($nextEnd < $nextStart) {
             $nextEnd = $nextStart;
         }
@@ -144,6 +194,13 @@ final class TransformEngine
     }
 
     /**
+     * Ermittelt den neuen Zeitpunkt für Start oder Ende.
+     *
+     * Die Funktion ist absichtlich klein gehalten:
+     * - Referenz auswählen
+     * - Offset optional anwenden
+     * - bei ungültigem Offset die Referenz unverändert übernehmen
+     *
      * @param array<string, mixed> $spec
      */
     private function resolveAdjustedTime(\DateTimeImmutable $fallback, \DateTimeImmutable $currentStart, \DateTimeImmutable $currentEnd, array $spec, string $defaultReference): \DateTimeImmutable
@@ -156,11 +213,13 @@ final class TransformEngine
             default => $fallback,
         };
 
+        // Ohne Offset wird nur die Referenzzeit übernommen.
         if ($offset === '') {
             return $base;
         }
 
         if (!preg_match('/^([+-]?)(\d+)(s|m|h)$/', $offset, $matches)) {
+            // Ungültige Offsets werden defensiv ignoriert.
             return $base;
         }
 
@@ -195,6 +254,10 @@ final class TransformEngine
             return;
         }
 
+        // Das Zielformat bleibt am ursprünglichen Property-Typ orientiert:
+        // - DATE bleibt DATE
+        // - UTC-Timestamps bleiben UTC
+        // - ansonsten lokales DATE-TIME
         $template = (string) $event->originalEvent->{$property};
         if (preg_match('/^\d{8}$/', $template) === 1) {
             $event->originalEvent->{$property} = $dateTime->format('Ymd');
@@ -206,9 +269,14 @@ final class TransformEngine
             return;
         }
 
+        // Standardfall: lokales DateTime ohne Zulu-Suffix.
         $event->originalEvent->{$property} = $dateTime->format('Ymd\\THis');
     }
 
+    /**
+     * Formatiert eine Dauer in Sekunden als ICS-taugliches ISO-8601-String.
+     * Beispiel: 5400 => PT1H30M
+     */
     private function formatDurationSeconds(int $seconds): string
     {
         $hours = intdiv($seconds, 3600);
@@ -220,6 +288,11 @@ final class TransformEngine
     }
 
     /**
+     * Verschiebt DTSTART oder DTEND anhand eines relativen DateTime-Modifiers.
+     *
+     * Diese Variante ist bewusst einfacher als adjust_times, weil nur ein
+     * einzelnes Feld verändert wird.
+     *
      * @param array<string, mixed> $transform
      */
     private function modifyDateTime(CalendarEvent $event, array $transform): void
@@ -254,6 +327,7 @@ final class TransformEngine
 
     private function removeProperty(CalendarEvent $event, string $field): void
     {
+        // Freie Property-Namen werden als ICS-Keys behandelt.
         $property = strtoupper($field);
         if (isset($event->originalEvent->{$property})) {
             unset($event->originalEvent->{$property});
@@ -262,6 +336,7 @@ final class TransformEngine
 
     private function isAllDayEvent(CalendarEvent $event): bool
     {
+        // All-Day-Events sind als VALUE=DATE kodiert und haben kein DateTime.
         return isset($event->originalEvent->DTSTART) && preg_match('/^\d{8}$/', (string) $event->originalEvent->DTSTART) === 1;
     }
 
@@ -271,6 +346,8 @@ final class TransformEngine
             return $subject;
         }
 
+        // Ungültige Pattern führen nicht zu einem Fehler, sondern lassen den
+        // Originalwert unverändert.
         $result = @preg_replace($pattern, $replacement, $subject);
         return is_string($result) ? $result : $subject;
     }

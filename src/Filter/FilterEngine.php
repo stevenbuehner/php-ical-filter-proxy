@@ -9,6 +9,23 @@ use App\Config\Dto\FilterRuleConfig;
 
 final readonly class FilterEngine
 {
+    /**
+     * Wendet die definierte Filterliste sequenziell auf alle Events an.
+     *
+     * Verarbeitungslogik:
+     * - Regeln werden exakt in YAML-Reihenfolge ausgeführt.
+     * - Jede Regel sieht immer den aktuellen Stand des Events.
+     * - `onMatch=remove` entfernt das Event.
+     * - `onMatch=transform` mutiert das Event über die TransformEngine.
+     * - Nicht passende Events bleiben unverändert im Ergebnis.
+     *
+     * Diese Engine ist bewusst einfach gehalten: Sie orchestriert nur das
+     * Abhängigkeitsverhältnis zwischen MatchEvaluator, TransformEngine und der
+     * Reihenfolge der Regeln. Fachlogik liegt in den jeweiligen Helfern.
+     *
+     * @param list<CalendarEvent> $events
+     * @param list<FilterRuleConfig> $rules
+     */
     public function __construct(
         private MatchEvaluator $matchEvaluator = new MatchEvaluator(),
         private TransformEngine $transformEngine = new TransformEngine(),
@@ -16,13 +33,19 @@ final readonly class FilterEngine
     }
 
     /**
-     * @param list<CalendarEvent> $events
-     * @param list<FilterRuleConfig> $rules
+     * Verarbeitet eine Event-Liste mit einer Liste von Regeln.
+     *
+     * Das Ergebnis enthält:
+     * - die gefilterten Events
+     * - Statistiken pro Regel
+     * - Warnungen, z. B. wenn eine Match-Regel ohne Bedingungen konfiguriert wurde
+     *
+     * Wichtig: Jede Regel sieht die Ausgabe der vorherigen Regel. Dadurch können
+     * mehrere Filter und Transformationen nacheinander auf denselben Eventsatz wirken.
      */
     public function apply(array $events, array $rules): FilterEngineResult
     {
         $currentEvents = $events;
-        $stoppedEvents = [];
         $perRuleRemovedCount = [];
         $perRuleKeptCount = [];
         $warnings = [];
@@ -42,12 +65,7 @@ final readonly class FilterEngine
             $removed = 0;
 
             foreach ($currentEvents as $event) {
-                $eventId = spl_object_id($event->originalEvent);
-                if (isset($stoppedEvents[$eventId])) {
-                    $nextEvents[] = $event;
-                    continue;
-                }
-
+                // Erst prüfen wir, ob die Regel auf dieses Event überhaupt zutrifft.
                 $matches = $this->matches($event, $rule);
 
                 if (!$matches) {
@@ -55,20 +73,22 @@ final readonly class FilterEngine
                     continue;
                 }
 
+                // Ein Treffer mit "remove" beendet die Verarbeitung dieses Events
+                // für die aktuelle Regel, das Event wird nicht übernommen.
                 if ($rule->onMatch === 'remove') {
                     $removed++;
                     continue;
                 }
 
+                // Ein Treffer mit "transform" mutiert das Original-VEVENT.
                 if ($rule->onMatch === 'transform') {
                     $this->transformEngine->apply($event, $rule);
                 }
 
+                // Nach Remove/Transform wird immer ein frischer CalendarEvent
+                // aus dem aktuell mutierten VEvent erzeugt, damit Folge-Regeln
+                // mit dem neuesten Stand arbeiten.
                 $nextEvents[] = CalendarEvent::fromVEvent($event->originalEvent);
-
-                if ($rule->stopProcessing) {
-                    $stoppedEvents[$eventId] = true;
-                }
             }
 
             $currentEvents = $nextEvents;
@@ -90,6 +110,9 @@ final readonly class FilterEngine
 
     private function matches(CalendarEvent $event, FilterRuleConfig $rule): bool
     {
+        // Aktuell ist "match" der zentrale Filtertyp. Die Typprüfung bleibt
+        // bewusst hier, damit spätere zusätzliche Filtertypen sauber ergänzt
+        // werden können, ohne die Sequenzlogik zu verändern.
         if ($rule->type !== 'match') {
             return false;
         }
