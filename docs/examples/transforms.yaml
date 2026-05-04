@@ -10,32 +10,30 @@ exports:
     include_sources:
       - source: kalender
         filters:
-          - name: "Technik markieren"
-            action: keep
+          - type: match
             match:
               summary:
                 contains: "Technik"
-            transforms:
-              - field: summary
-                action: prefix
+            on_match: transform
+            transform:
+              - type: prefix_text
+                field: summary
                 value: "[Technik] "
-              - field: location
-                action: suffix
+              - type: suffix_text
+                field: location
                 value: " (Dienst)"
-              - field: description
-                action: replace
+              - type: replace_text
+                field: description
                 search: "intern"
                 replace: "extern"
-              - field: categories
-                action: add
+              - type: categories_add
                 value: "Technik"
-          - field: url
-            action: remove
-          - field: time
-            action: adjust_times
-            start:
-              reference: current_start
-              offset: "-20m"
-            end:
-              reference: current_start
-              offset: "10m"
+              - type: remove_property
+                field: url
+              - type: adjust_times
+                start:
+                  reference: current_start
+                  offset: "-20m"
+                end:
+                  reference: current_start
+                  offset: "10m"

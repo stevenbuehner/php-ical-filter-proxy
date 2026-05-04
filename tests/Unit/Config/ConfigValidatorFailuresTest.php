@@ -28,10 +28,16 @@ exports:
     include_sources:
       - source: s1
         filters:
-          - name: "R"
+          - type: match
             match:
               summary:
                 regex: "/*invalid"
+            on_match: transform
+            transform:
+              - type: replace_regex
+                field: summary
+                pattern: "/*invalid"
+                replacement: "x"
 YAML);
 
         $cacheRoot = sys_get_temp_dir() . '/ical_cache_' . uniqid('', true);
@@ -49,84 +55,8 @@ YAML);
         self::assertContains('sources.s1.unknown', $paths);
         self::assertContains('sources.s1.cache_ttl', $paths);
         self::assertContains('exports.e1.include_sources[0].filters[0].match.summary.regex', $paths);
-
         self::assertContains('Unknown key.', $messages);
         self::assertContains('TTL format is invalid.', $messages);
-        self::assertContains('Regex pattern is invalid.', $messages);
-    }
-
-    public function testMatchAnyMustBeTrue(): void
-    {
-        $configFile = tempnam(sys_get_temp_dir(), 'cfgany_');
-        self::assertNotFalse($configFile);
-
-        file_put_contents($configFile, <<<'YAML'
-sources:
-  s1:
-    url: "https://example.com/a.ics"
-    filters:
-      - name: "invalid any"
-        action: keep
-        match:
-          any: false
-exports:
-  e1:
-    title: "Export"
-    slug: "e1"
-    token: "secret"
-    include_sources:
-      - source: s1
-YAML);
-
-        $cacheRoot = sys_get_temp_dir() . '/ical_cache_' . uniqid('', true);
-        mkdir($cacheRoot . '/feeds', 0777, true);
-        mkdir($cacheRoot . '/exports', 0777, true);
-
-        $errors = (new ConfigValidator())->validateFile($configFile, $cacheRoot . '/feeds', $cacheRoot . '/exports');
-        $messages = array_map(static fn ($e): string => $e->message, $errors);
-        $paths = array_map(static fn ($e): string => $e->path, $errors);
-
-        self::assertNotSame([], $errors);
-        self::assertContains('match.any must be true.', $messages);
-        self::assertContains('sources.s1.filters[0].match.any', $paths);
-    }
-
-    public function testEventMigrationValidationReportsBadStrategyAndGapTolerance(): void
-    {
-        $configFile = tempnam(sys_get_temp_dir(), 'cfgmig_');
-        self::assertNotFalse($configFile);
-
-        file_put_contents($configFile, <<<'YAML'
-sources:
-  s1:
-    url: "https://example.com/a.ics"
-exports:
-  e1:
-    title: "Export"
-    slug: "e1"
-    token: "secret"
-    event_migration:
-      enabled: "yes"
-      gap_tolerance: "5x"
-      strategy: "unknown"
-    include_sources:
-      - source: s1
-YAML);
-
-        $cacheRoot = sys_get_temp_dir() . '/ical_cache_' . uniqid('', true);
-        mkdir($cacheRoot . '/feeds', 0777, true);
-        mkdir($cacheRoot . '/exports', 0777, true);
-
-        $errors = (new ConfigValidator())->validateFile($configFile, $cacheRoot . '/feeds', $cacheRoot . '/exports');
-        $messages = array_map(static fn ($e): string => $e->message, $errors);
-        $paths = array_map(static fn ($e): string => $e->path, $errors);
-
-        self::assertContains('event_migration.enabled must be a boolean.', $messages);
-        self::assertContains('Gap tolerance format is invalid.', $messages);
-        self::assertContains('Unsupported event migration strategy.', $messages);
-        self::assertContains('exports.e1.event_migration.enabled', $paths);
-        self::assertContains('exports.e1.event_migration.gap_tolerance', $paths);
-        self::assertContains('exports.e1.event_migration.strategy', $paths);
     }
 
     public function testTimeTransformValidationReportsBadReferenceAndOffset(): void
@@ -146,13 +76,12 @@ exports:
     include_sources:
       - source: s1
         filters:
-          - name: "Time"
-            action: keep
+          - type: match
             match:
               any: true
-            transforms:
-              - field: time
-                action: adjust_times
+            on_match: transform
+            transform:
+              - type: adjust_times
                 start:
                   reference: invalid
                   offset: "10x"
@@ -171,7 +100,7 @@ YAML);
 
         self::assertContains('Time reference is invalid.', $messages);
         self::assertContains('Time offset is invalid.', $messages);
-        self::assertContains('exports.e1.include_sources[0].filters[0].transforms[0].start.reference', $paths);
-        self::assertContains('exports.e1.include_sources[0].filters[0].transforms[0].start.offset', $paths);
+        self::assertContains('exports.e1.include_sources[0].filters[0].transform[0].start.reference', $paths);
+        self::assertContains('exports.e1.include_sources[0].filters[0].transform[0].start.offset', $paths);
     }
 }

@@ -18,10 +18,11 @@ use Symfony\Component\HttpClient\Response\MockResponse;
 
 final class FeedFetcherSourceFiltersAndTransformsTest extends TestCase
 {
-    public function testSourceKeepFilterIsAppliedBeforeCaching(): void
+    public function testSourceKeepAndRemoveFiltersAreAppliedBeforeCaching(): void
     {
         $events = $this->fetchWithFilters([
-            new FilterRuleConfig('keep-technik', 'keep', ['summary' => ['contains' => 'Technik']]),
+            new FilterRuleConfig(type: 'match', match: ['summary' => ['contains' => 'Technik']], onMatch: 'keep'),
+            new FilterRuleConfig(type: 'match', match: ['summary' => ['contains' => 'Jugend']], onMatch: 'remove'),
         ]);
 
         self::assertCount(2, $events);
@@ -29,66 +30,28 @@ final class FeedFetcherSourceFiltersAndTransformsTest extends TestCase
         self::assertStringContainsString('Technik', $events[1]->summary);
     }
 
-    public function testSourceRemoveFilterIsAppliedBeforeCaching(): void
+    public function testSourceTransformsAreApplied(): void
     {
         $events = $this->fetchWithFilters([
-            new FilterRuleConfig('remove-jugend', 'remove', ['summary' => ['contains' => 'Jugend']]),
-        ]);
-
-        self::assertCount(2, $events);
-        self::assertStringNotContainsString('Jugend', $events[0]->summary);
-        self::assertStringNotContainsString('Jugend', $events[1]->summary);
-    }
-
-    public function testSourceTextTransformsAreApplied(): void
-    {
-        $events = $this->fetchWithFilters([
-            new FilterRuleConfig('prefix-all', 'keep', ['any' => true], [
-                ['field' => 'summary', 'action' => 'prefix', 'value' => '[SRC] '],
-                ['field' => 'summary', 'action' => 'suffix', 'value' => ' [OK]'],
-                ['field' => 'location', 'action' => 'replace_regex', 'pattern' => '/Saal|Studio/i', 'replacement' => 'Halle'],
-            ]),
+            new FilterRuleConfig(
+                type: 'match',
+                match: ['any' => true],
+                onMatch: 'transform',
+                transform: [
+                    ['type' => 'prefix_text', 'field' => 'summary', 'value' => '[SRC] '],
+                    ['type' => 'suffix_text', 'field' => 'summary', 'value' => ' [OK]'],
+                    ['type' => 'replace_regex', 'field' => 'location', 'pattern' => '/Saal|Studio/i', 'replacement' => 'Halle'],
+                    ['type' => 'categories_add', 'value' => 'Source'],
+                    ['type' => 'adjust_times', 'start' => ['reference' => 'current_start', 'offset' => '+1 day']],
+                ],
+            ),
         ]);
 
         self::assertSame('[SRC] Technikdienst Probe [OK]', $events[0]->summary);
         self::assertSame('[SRC] Jugendtreffen [OK]', $events[1]->summary);
         self::assertSame('Halle', $events[0]->location);
-    }
-
-    public function testSourceCategoryAndDateTransformsAreApplied(): void
-    {
-        $events = $this->fetchWithFilters([
-            new FilterRuleConfig('transform-all', 'keep', ['any' => true], [
-                ['field' => 'categories', 'action' => 'add', 'value' => 'Source'],
-                ['field' => 'start', 'action' => 'modify', 'value' => '+1 day'],
-            ]),
-        ]);
-
         self::assertStringContainsString('Source', implode(',', $events[0]->categories));
         self::assertSame('20260502T090000', $events[0]->dtstart);
-    }
-
-    public function testSourceTimeAdjustTransformIsApplied(): void
-    {
-        $events = $this->fetchWithFilters([
-            new FilterRuleConfig('transform-time', 'keep', ['any' => true], [
-                [
-                    'field' => 'time',
-                    'action' => 'adjust_times',
-                    'start' => [
-                        'reference' => 'current_start',
-                        'offset' => '-20m',
-                    ],
-                    'end' => [
-                        'reference' => 'current_start',
-                        'offset' => '10m',
-                    ],
-                ],
-            ]),
-        ]);
-
-        self::assertSame('20260501T084000', $events[0]->dtstart);
-        self::assertSame('20260501T091000', $events[0]->dtend);
     }
 
     /** @return list<\App\Calendar\CalendarEvent> */

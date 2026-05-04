@@ -162,7 +162,7 @@ final readonly class FeedFetcher
         $parser = new CalendarParser();
         $calendar = $parser->parse($content);
         $events = $parser->extractEvents($calendar);
-        $filtered = (new FilterEngine(new MatchEvaluator(), new TransformEngine()))->apply($events, $sourceConfig->filters);
+        $filtered = (new FilterEngine())->apply($events, $sourceConfig->filters);
 
         $result = new VCalendar();
         foreach ($filtered->filteredEvents as $event) {

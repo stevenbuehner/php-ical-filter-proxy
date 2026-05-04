@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Config;
 
 use App\Config\Dto\EventMigrationConfig;
+use App\Rule\RuleTypeConfigLoader;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
 
@@ -14,14 +15,18 @@ final readonly class ConfigValidator
     private const EXPORT_ALLOWED_KEYS = ['title', 'slug', 'token', 'cache_ttl', 'include_sources', 'event_migration'];
     private const INCLUDED_SOURCE_ALLOWED_KEYS = ['source', 'filters'];
     private const EVENT_MIGRATION_ALLOWED_KEYS = ['enabled', 'gap_tolerance', 'strategy'];
-    private const FILTER_ALLOWED_KEYS = ['name', 'action', 'match', 'transform', 'transforms'];
-    private const TRANSFORM_ALLOWED_KEYS = ['field', 'action', 'value', 'search', 'replace', 'pattern', 'replacement', 'start', 'end'];
-    private const MATCH_FIELDS = ['any', 'summary', 'description', 'location', 'url', 'categories', 'date'];
-    private const MATCH_OPERATORS = [
-        'contains', 'contains_any', 'contains_all', 'not_contains', 'equals', 'not_equals', 'regex', 'empty',
-    ];
-    private const TIME_ADJUST_REFERENCES = ['current_start', 'current_end'];
     private const EVENT_MIGRATION_STRATEGIES = ['merge_titles_csv'];
+    private const ALLOWED_FILTER_TYPES = ['match'];
+    private const ALLOWED_ON_MATCH = ['transform', 'remove', 'keep', 'stop_processing'];
+    private const ALLOWED_TRANSFORM_TYPES = ['prefix_text', 'suffix_text', 'replace_text', 'replace_regex', 'remove_property', 'categories_add', 'categories_remove', 'adjust_times', 'modify_datetime'];
+    private const ALLOWED_MATCH_FIELDS = ['any', 'summary', 'description', 'location', 'url', 'categories', 'date'];
+    private const ALLOWED_MATCH_OPERATORS = ['contains', 'contains_any', 'contains_all', 'not_contains', 'equals', 'not_equals', 'regex', 'empty', 'from', 'until'];
+    private const ALLOWED_TIME_REFERENCES = ['current_start', 'current_end'];
+
+    public function __construct(
+        private ?string $ruleTypeConfigFile = null,
+    ) {
+    }
 
     /** @return list<ValidationError> */
     public function validateFile(string $configFile, string $feedCacheDir, string $exportCacheDir): array
@@ -203,6 +208,8 @@ final readonly class ConfigValidator
             return [new ValidationError('invalid_type', 'Filters must be a list.', $path, 'list', gettype($filters))];
         }
 
+        $registry = $this->loadRegistry();
+
         foreach ($filters as $index => $filter) {
             $filterPath = $path . '[' . (int) $index . ']';
             if (!is_array($filter)) {
@@ -210,11 +217,20 @@ final readonly class ConfigValidator
                 continue;
             }
 
-            foreach ($this->validateUnknownKeys($filter, self::FILTER_ALLOWED_KEYS, $filterPath) as $e) { $errors[] = $e; }
+            foreach ($this->validateUnknownKeys($filter, ['type', 'match', 'on_match', 'stop_processing', 'transform'], $filterPath) as $e) { $errors[] = $e; }
 
-            $action = (string) ($filter['action'] ?? 'remove');
-            if (!in_array($action, ['keep', 'remove'], true)) {
-                $errors[] = new ValidationError('invalid_value', 'Filter action must be keep or remove.', $filterPath . '.action', 'keep|remove', $action);
+            $type = strtolower(trim((string) ($filter['type'] ?? 'match')));
+            if (!in_array($type, $registry->filters, true)) {
+                $errors[] = new ValidationError('invalid_value', 'Unsupported filter type.', $filterPath . '.type', implode('|', $registry->filters), $type);
+                continue;
+            }
+            if ($type !== 'match') {
+                continue;
+            }
+
+            $onMatch = strtolower(trim((string) ($filter['on_match'] ?? 'keep')));
+            if (!in_array($onMatch, self::ALLOWED_ON_MATCH, true)) {
+                $errors[] = new ValidationError('invalid_value', 'Invalid on_match value.', $filterPath . '.on_match', implode('|', self::ALLOWED_ON_MATCH), $onMatch);
             }
 
             $match = $filter['match'] ?? null;
@@ -227,8 +243,8 @@ final readonly class ConfigValidator
                 $fieldName = (string) $field;
                 $matchPath = $filterPath . '.match.' . $fieldName;
 
-                if (!in_array($fieldName, self::MATCH_FIELDS, true)) {
-                    $errors[] = new ValidationError('invalid_value', 'Unsupported match field.', $matchPath, implode('|', self::MATCH_FIELDS), $fieldName);
+                if (!in_array($fieldName, self::ALLOWED_MATCH_FIELDS, true)) {
+                    $errors[] = new ValidationError('invalid_value', 'Unsupported match field.', $matchPath, implode('|', self::ALLOWED_MATCH_FIELDS), $fieldName);
                     continue;
                 }
 
@@ -246,30 +262,25 @@ final readonly class ConfigValidator
 
                 foreach ($ruleSet as $operator => $value) {
                     $op = (string) $operator;
-                    if (!in_array($op, self::MATCH_OPERATORS, true)) {
-                        $errors[] = new ValidationError('invalid_value', 'Unsupported match operator.', $matchPath, implode('|', self::MATCH_OPERATORS), $op);
+                    if (!in_array($op, self::ALLOWED_MATCH_OPERATORS, true)) {
+                        $errors[] = new ValidationError('invalid_value', 'Unsupported match operator.', $matchPath, implode('|', self::ALLOWED_MATCH_OPERATORS), $op);
                         continue;
                     }
 
-                    if ($op === 'regex') {
-                        if (!is_string($value) || $value === '') {
-                            $errors[] = new ValidationError('invalid_type', 'Regex operator requires non-empty string.', $matchPath . '.regex', 'non-empty regex string', gettype($value));
-                        } elseif (@preg_match($value, '') === false) {
-                            $errors[] = new ValidationError('invalid_value', 'Regex pattern is invalid.', $matchPath . '.regex', 'valid PCRE pattern', $value);
-                        }
+                    if ($op === 'regex' && (!is_string($value) || $value === '' || @preg_match($value, '') === false)) {
+                        $errors[] = new ValidationError('invalid_value', 'Regex pattern is invalid.', $matchPath . '.regex', 'valid PCRE pattern', is_string($value) ? $value : gettype($value));
                     }
                 }
             }
 
-            if (array_key_exists('transforms', $filter)) {
-                foreach ($this->validateTransforms($filter['transforms'], $filterPath . '.transforms') as $e) { $errors[] = $e; }
-            } elseif (array_key_exists('transform', $filter)) {
-                $transform = $filter['transform'];
-                if (is_array($transform)) {
-                    foreach ($this->validateTransforms([$transform], $filterPath . '.transform') as $e) { $errors[] = $e; }
-                } else {
-                    $errors[] = new ValidationError('invalid_type', 'Filter transform must be a mapping.', $filterPath . '.transform', 'mapping', gettype($transform));
+            if ($onMatch === 'transform') {
+                $transform = $filter['transform'] ?? null;
+                if (!is_array($transform)) {
+                    $errors[] = new ValidationError('invalid_type', 'Filter transform must be a list.', $filterPath . '.transform', 'list', gettype($transform));
+                    continue;
                 }
+
+                foreach ($this->validateTransforms($transform, $filterPath . '.transform', $registry->transformations) as $e) { $errors[] = $e; }
             }
         }
 
@@ -277,7 +288,7 @@ final readonly class ConfigValidator
     }
 
     /** @return list<ValidationError> */
-    private function validateTransforms(mixed $transforms, string $path): array
+    private function validateTransforms(mixed $transforms, string $path, array $allowedTypes = self::ALLOWED_TRANSFORM_TYPES): array
     {
         $errors = [];
         if (!is_array($transforms)) {
@@ -291,12 +302,15 @@ final readonly class ConfigValidator
                 continue;
             }
 
-            foreach ($this->validateUnknownKeys($transform, self::TRANSFORM_ALLOWED_KEYS, $transformPath) as $e) { $errors[] = $e; }
+            foreach ($this->validateUnknownKeys($transform, ['type', 'field', 'value', 'search', 'replace', 'pattern', 'replacement', 'start', 'end'], $transformPath) as $e) { $errors[] = $e; }
 
-            $field = strtolower(trim((string) ($transform['field'] ?? '')));
-            $action = strtolower(trim((string) ($transform['action'] ?? '')));
+            $type = strtolower(trim((string) ($transform['type'] ?? '')));
+            if (!in_array($type, $allowedTypes, true)) {
+                $errors[] = new ValidationError('invalid_value', 'Unsupported transform type.', $transformPath . '.type', implode('|', $allowedTypes), $type);
+                continue;
+            }
 
-            if ($field === 'time' && in_array($action, ['adjust', 'adjust_times'], true)) {
+            if ($type === 'adjust_times') {
                 foreach (['start', 'end'] as $side) {
                     $sidePath = $transformPath . '.' . $side;
                     if (!array_key_exists($side, $transform)) {
@@ -306,16 +320,13 @@ final readonly class ConfigValidator
                         $errors[] = new ValidationError('invalid_type', ucfirst($side) . ' time transform must be a mapping.', $sidePath, 'mapping', gettype($transform[$side]));
                         continue;
                     }
-
                     foreach ($this->validateUnknownKeys($transform[$side], ['reference', 'offset'], $sidePath) as $e) { $errors[] = $e; }
-
                     if (array_key_exists('reference', $transform[$side])) {
                         $reference = strtolower(trim((string) $transform[$side]['reference']));
-                        if (!in_array($reference, self::TIME_ADJUST_REFERENCES, true)) {
-                            $errors[] = new ValidationError('invalid_value', 'Time reference is invalid.', $sidePath . '.reference', implode('|', self::TIME_ADJUST_REFERENCES), $reference);
+                        if (!in_array($reference, self::ALLOWED_TIME_REFERENCES, true)) {
+                            $errors[] = new ValidationError('invalid_value', 'Time reference is invalid.', $sidePath . '.reference', implode('|', self::ALLOWED_TIME_REFERENCES), $reference);
                         }
                     }
-
                     if (array_key_exists('offset', $transform[$side])) {
                         $offset = (string) $transform[$side]['offset'];
                         if (!preg_match('/^[+-]?\d+(s|m|h)$/', $offset)) {
@@ -326,13 +337,33 @@ final readonly class ConfigValidator
                 continue;
             }
 
-            if (in_array($field, ['summary', 'description', 'location', 'url', 'categories', 'start', 'end'], true) === false) {
-                $errors[] = new ValidationError('invalid_value', 'Unsupported transform field.', $transformPath . '.field', 'summary|description|location|url|categories|start|end|time', $field);
-                continue;
+            if (in_array($type, ['prefix_text', 'suffix_text', 'replace_text', 'replace_regex', 'remove_property'], true)) {
+                if (!array_key_exists('field', $transform) || !is_string($transform['field']) || trim($transform['field']) === '') {
+                    $errors[] = new ValidationError('missing_key', 'Transform field is required.', $transformPath . '.field', 'non-empty field', 'missing/empty');
+                }
+            }
+
+            if ($type === 'replace_regex') {
+                $pattern = (string) ($transform['pattern'] ?? '');
+                if ($pattern === '' || @preg_match($pattern, '') === false) {
+                    $errors[] = new ValidationError('invalid_value', 'Regex pattern is invalid.', $transformPath . '.pattern', 'valid PCRE pattern', $pattern);
+                }
             }
         }
 
         return $errors;
+    }
+
+    private function loadRegistry(): object
+    {
+        $file = $this->ruleTypeConfigFile ?? dirname(__DIR__, 2) . '/config/rule-types.yaml';
+        $loader = new RuleTypeConfigLoader($file);
+        $config = $loader->load();
+
+        return (object) [
+            'filters' => $config->filters !== [] ? $config->filters : self::ALLOWED_FILTER_TYPES,
+            'transformations' => $config->transformations !== [] ? $config->transformations : self::ALLOWED_TRANSFORM_TYPES,
+        ];
     }
 
     /** @return list<ValidationError> */

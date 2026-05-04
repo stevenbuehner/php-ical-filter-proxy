@@ -11,49 +11,37 @@ final class TransformEngine
 {
     public function apply(CalendarEvent $event, FilterRuleConfig $rule): void
     {
-        $transforms = $rule->transforms;
-        if ($transforms === []) {
-            return;
-        }
-
-        foreach ($transforms as $transform) {
-            if (!is_array($transform)) {
+        foreach ($rule->transform as $transform) {
+            $type = strtolower(trim((string) ($transform['type'] ?? '')));
+            if ($type === '') {
                 continue;
             }
 
-            $field = strtolower(trim((string) ($transform['field'] ?? '')));
-            $action = strtolower(trim((string) ($transform['action'] ?? '')));
-
-            if ($field === '' || $action === '') {
-                continue;
-            }
-
-            if ($field === 'time' && in_array($action, ['adjust', 'adjust_times'], true)) {
-                $this->adjustTimes($event, $transform);
-                continue;
-            }
-
-            $this->applyTransform($event, $field, $action, $transform);
+            $this->applyTransform($event, $type, $transform);
         }
     }
 
-    private function applyTransform(CalendarEvent $event, string $field, string $action, array $transform): void
+    /**
+     * @param array<string, mixed> $transform
+     */
+    private function applyTransform(CalendarEvent $event, string $type, array $transform): void
     {
-        if ($field === 'categories') {
-            $this->transformCategories($event, $action, $transform);
+        if (in_array($type, ['adjust_times'], true)) {
+            $this->adjustTimes($event, $transform);
             return;
         }
 
-        if ($field === 'start' && $action === 'modify') {
-            $this->modifyDate($event, 'DTSTART', (string) ($transform['value'] ?? ''));
+        if ($type === 'modify_datetime') {
+            $this->modifyDateTime($event, $transform);
             return;
         }
 
-        if ($field === 'end' && $action === 'modify') {
-            $this->modifyDate($event, 'DTEND', (string) ($transform['value'] ?? ''));
+        if ($type === 'categories_add' || $type === 'categories_remove') {
+            $this->transformCategories($event, $type, $transform);
             return;
         }
 
+        $field = strtolower(trim((string) ($transform['field'] ?? '')));
         $property = match ($field) {
             'summary' => 'SUMMARY',
             'description' => 'DESCRIPTION',
@@ -63,36 +51,27 @@ final class TransformEngine
         };
 
         if ($property === null) {
-            return;
-        }
-
-        $this->transformTextProperty($event, $property, $action, $transform);
-    }
-
-    private function transformTextProperty(CalendarEvent $event, string $property, string $action, array $transform): void
-    {
-        if ($action === 'remove') {
-            unset($event->originalEvent->{$property});
+            if ($type === 'remove_property' && $field !== '') {
+                $this->removeProperty($event, $field);
+            }
             return;
         }
 
         $current = isset($event->originalEvent->{$property}) ? (string) $event->originalEvent->{$property} : '';
 
-        $next = match ($action) {
-            'prefix' => (string) ($transform['value'] ?? '') . $current,
-            'suffix' => $current . (string) ($transform['value'] ?? ''),
-            'replace' => str_ireplace(
-                (string) ($transform['search'] ?? ''),
-                (string) ($transform['replace'] ?? ''),
-                $current
-            ),
-            'replace_regex' => $this->replaceRegex(
-                $current,
-                (string) ($transform['pattern'] ?? ''),
-                (string) ($transform['replacement'] ?? '')
-            ),
+        $next = match ($type) {
+            'prefix_text' => (string) ($transform['value'] ?? '') . $current,
+            'suffix_text' => $current . (string) ($transform['value'] ?? ''),
+            'replace_text' => str_ireplace((string) ($transform['search'] ?? ''), (string) ($transform['replace'] ?? ''), $current),
+            'replace_regex' => $this->replaceRegex($current, (string) ($transform['pattern'] ?? ''), (string) ($transform['replacement'] ?? '')),
+            'remove_property' => '',
             default => $current,
         };
+
+        if ($type === 'remove_property') {
+            unset($event->originalEvent->{$property});
+            return;
+        }
 
         if (!isset($event->originalEvent->{$property})) {
             $event->originalEvent->add($property, $next);
@@ -102,23 +81,22 @@ final class TransformEngine
         $event->originalEvent->{$property} = $next;
     }
 
-    private function transformCategories(CalendarEvent $event, string $action, array $transform): void
+    /**
+     * @param array<string, mixed> $transform
+     */
+    private function transformCategories(CalendarEvent $event, string $type, array $transform): void
     {
         $current = [];
         if (isset($event->originalEvent->CATEGORIES)) {
             $current = array_values(array_filter(array_map('trim', explode(',', (string) $event->originalEvent->CATEGORIES))));
         }
 
-        if ($action === 'add') {
-            $value = trim((string) ($transform['value'] ?? ''));
-            if ($value !== '' && !in_array($value, $current, true)) {
+        $value = trim((string) ($transform['value'] ?? ''));
+        if ($value !== '') {
+            if ($type === 'categories_add' && !in_array($value, $current, true)) {
                 $current[] = $value;
             }
-        }
-
-        if ($action === 'remove') {
-            $value = trim((string) ($transform['value'] ?? ''));
-            if ($value !== '') {
+            if ($type === 'categories_remove') {
                 $current = array_values(array_filter($current, static fn (string $item): bool => strcasecmp($item, $value) !== 0));
             }
         }
@@ -128,51 +106,26 @@ final class TransformEngine
             return;
         }
 
-        $serialized = implode(',', $current);
-        if (!isset($event->originalEvent->CATEGORIES)) {
-            $event->originalEvent->add('CATEGORIES', $serialized);
-            return;
-        }
-
-        $event->originalEvent->CATEGORIES = $serialized;
+        $event->originalEvent->CATEGORIES = implode(',', $current);
     }
 
-    private function modifyDate(CalendarEvent $event, string $property, string $modifier): void
-    {
-        if ($modifier === '' || !isset($event->originalEvent->{$property})) {
-            return;
-        }
-
-        try {
-            $current = new \DateTimeImmutable((string) $event->originalEvent->{$property});
-            $next = $current->modify($modifier);
-            if ($next === false) {
-                return;
-            }
-
-            $event->originalEvent->{$property} = $next->format('Ymd\\THis');
-        } catch (\Exception) {
-        }
-    }
-
+    /**
+     * @param array<string, mixed> $transform
+     */
     private function adjustTimes(CalendarEvent $event, array $transform): void
     {
         if ($this->isAllDayEvent($event)) {
             return;
         }
 
-        $startSpec = is_array($transform['start'] ?? null) ? $transform['start'] : [];
-        $endSpec = is_array($transform['end'] ?? null) ? $transform['end'] : [];
-
         $currentStart = $this->parseDateTimeProperty($event, 'DTSTART');
         if ($currentStart === null) {
             return;
         }
 
-        $currentEnd = $this->parseDateTimeProperty($event, 'DTEND');
-        if ($currentEnd === null) {
-            $currentEnd = $currentStart;
-        }
+        $currentEnd = $this->parseDateTimeProperty($event, 'DTEND') ?? $currentStart;
+        $startSpec = is_array($transform['start'] ?? null) ? $transform['start'] : [];
+        $endSpec = is_array($transform['end'] ?? null) ? $transform['end'] : [];
 
         $nextStart = $this->resolveAdjustedTime($currentStart, $currentStart, $currentEnd, $startSpec, 'current_start');
         $nextEnd = $this->resolveAdjustedTime($currentEnd, $currentStart, $currentEnd, $endSpec, 'current_end');
@@ -185,20 +138,18 @@ final class TransformEngine
         $this->writeDateTimeProperty($event, 'DTEND', $nextEnd);
 
         if (isset($event->originalEvent->DURATION)) {
-            $this->writeDurationProperty($event, $nextStart, $nextEnd);
+            $duration = max(0, $nextEnd->getTimestamp() - $nextStart->getTimestamp());
+            $event->originalEvent->DURATION = $this->formatDurationSeconds($duration);
         }
     }
 
-    private function resolveAdjustedTime(
-        \DateTimeImmutable $fallback,
-        \DateTimeImmutable $currentStart,
-        \DateTimeImmutable $currentEnd,
-        array $spec,
-        string $defaultReference,
-    ): \DateTimeImmutable {
+    /**
+     * @param array<string, mixed> $spec
+     */
+    private function resolveAdjustedTime(\DateTimeImmutable $fallback, \DateTimeImmutable $currentStart, \DateTimeImmutable $currentEnd, array $spec, string $defaultReference): \DateTimeImmutable
+    {
         $reference = strtolower(trim((string) ($spec['reference'] ?? $defaultReference)));
         $offset = trim((string) ($spec['offset'] ?? ''));
-
         $base = match ($reference) {
             'current_start' => $currentStart,
             'current_end' => $currentEnd,
@@ -209,32 +160,20 @@ final class TransformEngine
             return $base;
         }
 
-        $seconds = $this->parseOffsetSeconds($offset);
-        if ($seconds === null) {
+        if (!preg_match('/^([+-]?)(\d+)(s|m|h)$/', $offset, $matches)) {
             return $base;
         }
 
-        return $base->modify(($seconds >= 0 ? '+' : '') . $seconds . ' seconds') ?: $base;
-    }
-
-    private function parseOffsetSeconds(string $offset): ?int
-    {
-        if (!preg_match('/^([+-]?)(\d+)(s|m|h)$/', $offset, $matches)) {
-            return null;
-        }
-
-        $sign = $matches[1] === '-' ? -1 : 1;
+        $sign = $matches[1] === '-' ? '-' : '+';
         $amount = (int) $matches[2];
         $unit = $matches[3];
+        $modifier = sprintf('%s%d %s', $sign, $amount, match ($unit) {
+            's' => 'seconds',
+            'm' => 'minutes',
+            'h' => 'hours',
+        });
 
-        $multiplier = match ($unit) {
-            's' => 1,
-            'm' => 60,
-            'h' => 3600,
-            default => 0,
-        };
-
-        return $sign * $amount * $multiplier;
+        return $base->modify($modifier) ?: $base;
     }
 
     private function parseDateTimeProperty(CalendarEvent $event, string $property): ?\DateTimeImmutable
@@ -270,46 +209,55 @@ final class TransformEngine
         $event->originalEvent->{$property} = $dateTime->format('Ymd\\THis');
     }
 
-    private function writeDurationProperty(CalendarEvent $event, \DateTimeImmutable $start, \DateTimeImmutable $end): void
-    {
-        if (!isset($event->originalEvent->DURATION)) {
-            return;
-        }
-
-        $seconds = $end->getTimestamp() - $start->getTimestamp();
-        if ($seconds < 0) {
-            $seconds = 0;
-        }
-
-        $event->originalEvent->DURATION = $this->formatDurationSeconds($seconds);
-    }
-
     private function formatDurationSeconds(int $seconds): string
     {
-        $days = intdiv($seconds, 86400);
-        $seconds %= 86400;
         $hours = intdiv($seconds, 3600);
         $seconds %= 3600;
         $minutes = intdiv($seconds, 60);
         $seconds %= 60;
 
-        $parts = [];
-        if ($days > 0) {
-            $parts[] = $days . 'D';
+        return sprintf('PT%s%s%s', $hours > 0 ? $hours . 'H' : '', $minutes > 0 ? $minutes . 'M' : '', $seconds > 0 || ($hours === 0 && $minutes === 0) ? $seconds . 'S' : '');
+    }
+
+    /**
+     * @param array<string, mixed> $transform
+     */
+    private function modifyDateTime(CalendarEvent $event, array $transform): void
+    {
+        $field = strtolower(trim((string) ($transform['field'] ?? '')));
+        $modifier = trim((string) ($transform['value'] ?? ''));
+        if ($modifier === '') {
+            return;
         }
 
-        $time = '';
-        if ($hours > 0) {
-            $time .= $hours . 'H';
-        }
-        if ($minutes > 0) {
-            $time .= $minutes . 'M';
-        }
-        if ($seconds > 0 || $time === '') {
-            $time .= $seconds . 'S';
+        $property = match ($field) {
+            'start' => 'DTSTART',
+            'end' => 'DTEND',
+            default => null,
+        };
+
+        if ($property === null || !isset($event->originalEvent->{$property})) {
+            return;
         }
 
-        return 'P' . implode('', $parts) . 'T' . $time;
+        try {
+            $current = new \DateTimeImmutable((string) $event->originalEvent->{$property});
+            $next = $current->modify($modifier);
+            if ($next === false) {
+                return;
+            }
+
+            $this->writeDateTimeProperty($event, $property, $next);
+        } catch (\Exception) {
+        }
+    }
+
+    private function removeProperty(CalendarEvent $event, string $field): void
+    {
+        $property = strtoupper($field);
+        if (isset($event->originalEvent->{$property})) {
+            unset($event->originalEvent->{$property});
+        }
     }
 
     private function isAllDayEvent(CalendarEvent $event): bool
@@ -324,10 +272,6 @@ final class TransformEngine
         }
 
         $result = @preg_replace($pattern, $replacement, $subject);
-        if ($result === null) {
-            return $subject;
-        }
-
-        return $result;
+        return is_string($result) ? $result : $subject;
     }
 }

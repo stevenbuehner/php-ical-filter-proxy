@@ -12,8 +12,6 @@ use App\Calendar\EventMigrationEngine;
 use App\Calendar\FeedFetcher;
 use App\Config\ConfigLoader;
 use App\Filter\FilterEngine;
-use App\Filter\MatchEvaluator;
-use App\Filter\TransformEngine;
 use App\Http\Logger\FileLogger;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -85,7 +83,7 @@ final class ExportPreviewCommand extends Command
 
         $results = $feedFetcher->fetchAll($sourceMap);
         $parser = new CalendarParser();
-        $filterEngine = new FilterEngine(new MatchEvaluator(), new TransformEngine());
+        $filterEngine = new FilterEngine();
         $migrationEngine = new EventMigrationEngine();
 
         $eventsBefore = 0;

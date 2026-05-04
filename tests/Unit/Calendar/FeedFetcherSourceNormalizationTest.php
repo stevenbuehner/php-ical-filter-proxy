@@ -30,11 +30,11 @@ final class FeedFetcherSourceNormalizationTest extends TestCase
             cacheTtl: '15m',
             filters: [
                 new FilterRuleConfig(
-                    name: 'prefix-all',
-                    action: 'keep',
+                    type: 'match',
                     match: ['any' => true],
-                    transforms: [
-                        ['field' => 'summary', 'action' => 'prefix', 'value' => '[SRC] '],
+                    onMatch: 'transform',
+                    transform: [
+                        ['type' => 'prefix_text', 'field' => 'summary', 'value' => '[SRC] '],
                     ],
                 ),
             ],

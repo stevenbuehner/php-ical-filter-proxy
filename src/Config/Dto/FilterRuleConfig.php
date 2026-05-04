@@ -8,42 +8,50 @@ final readonly class FilterRuleConfig
 {
     /**
      * @param array<string, mixed> $match
-     * @param array<int, array<string, mixed>> $transforms
+     * @param list<array<string, mixed>> $transform
+     * @param array<string, mixed> $extra
      */
     public function __construct(
-        public string $name,
-        public string $action,
+        public string $type,
         public array $match,
-        public array $transforms = [],
+        public string $onMatch = 'keep',
+        public bool $stopProcessing = false,
+        public array $transform = [],
         public array $extra = [],
     ) {
     }
 
     public static function fromArray(array $data): self
     {
-        $name = (string) ($data['name'] ?? '');
-        $action = (string) ($data['action'] ?? 'remove');
-        $match = is_array($data['match'] ?? null) ? $data['match'] : [];
-        $transforms = is_array($data['transforms'] ?? null) ? array_values($data['transforms']) : [];
+        $transform = is_array($data['transform'] ?? null) ? array_values($data['transform']) : [];
 
         return new self(
-            name: $name,
-            action: $action,
-            match: $match,
-            transforms: $transforms,
-            extra: self::extra($data, ['name', 'action', 'match', 'transforms']),
+            type: (string) ($data['type'] ?? 'match'),
+            match: is_array($data['match'] ?? null) ? $data['match'] : [],
+            onMatch: (string) ($data['on_match'] ?? 'keep'),
+            stopProcessing: self::toBool($data['stop_processing'] ?? false),
+            transform: $transform,
+            extra: self::extra($data, ['type', 'match', 'on_match', 'stop_processing', 'transform']),
         );
     }
 
     public function toArray(): array
     {
         return [
-            'name' => $this->name,
-            'action' => $this->action,
+            'type' => $this->type,
             'match' => $this->match,
-            'transforms' => $this->transforms,
+            'on_match' => $this->onMatch,
+            'stop_processing' => $this->stopProcessing,
+            'transform' => $this->transform,
             'extra' => $this->extra,
         ];
+    }
+
+    private static function toBool(mixed $value): bool
+    {
+        $parsed = filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
+
+        return $parsed ?? false;
     }
 
     private static function extra(array $data, array $knownKeys): array

@@ -30,13 +30,12 @@ exports:
     include_sources:
       - source: s1
         filters:
-          - name: "Zeiten anpassen"
-            action: keep
+          - type: match
             match:
               any: true
-            transforms:
-              - field: time
-                action: adjust_times
+            on_match: transform
+            transform:
+              - type: adjust_times
                 start:
                   reference: current_start
                   offset: "-20m"

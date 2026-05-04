@@ -4,95 +4,98 @@ sources:
     url: "https://example.org/kirche.ics"
     cache_ttl: "15m"
     filters:
-      - name: "Interne Einträge entfernen"
-        action: remove
+      - type: match
         match:
           summary:
             contains_any: ["Intern", "Team-only", "Orga"]
           description:
             not_contains: "öffentlich"
+        on_match: remove
 
-      - name: "Nur Einträge mit Datum im aktuellen Jahr"
-        action: keep
+      - type: match
         match:
           summary:
             regex: "/20(2[6-9]|3[0-9])/"
+        on_match: keep
 
-          - name: "Leere URL ergänzen und Titel vereinheitlichen"
-            action: keep
-            match:
-              url:
-                empty: true
-            transforms:
-          - field: url
-            action: replace
-            value: "https://example.org/kalender"
-              - field: summary
-                action: prefix
-                value: "[Kirche] "
-          - name: "Zeiten anpassen"
-            action: keep
-            match:
-              any: true
-            transforms:
-              - field: time
-                action: adjust_times
-                start:
-                  reference: current_start
-                  offset: "-20m"
-                end:
-                  reference: current_start
-                  offset: "10m"
+      - type: match
+        match:
+          url:
+            empty: true
+        on_match: transform
+        transform:
+          - type: replace_text
+            field: url
+            search: ""
+            replace: "https://example.org/kalender"
+          - type: prefix_text
+            field: summary
+            value: "[Kirche] "
+
+      - type: match
+        match:
+          any: true
+        on_match: transform
+        transform:
+          - type: adjust_times
+            start:
+              reference: current_start
+              offset: "-20m"
+            end:
+              reference: current_start
+              offset: "10m"
 
   technik:
     label: "Technikplan"
     url: "https://example.org/technik.ics"
     cache_ttl: "10m"
     filters:
-      - name: "Abgesagte Dienste entfernen"
-        action: remove
+      - type: match
         match:
           summary:
             regex: "/abgesagt|cancelled/i"
+        on_match: remove
 
-      - name: "Nur relevante Rollen"
-        action: keep
+      - type: match
         match:
           summary:
             contains_any: ["Ton", "Licht", "Stream", "Beamer"]
+        on_match: keep
 
-      - name: "Location normalisieren"
-        action: keep
+      - type: match
         match:
           location:
             equals: "Hauptkirche"
-        transforms:
-          - field: location
-            action: replace
-            value: "Campus Hauptkirche"
+        on_match: transform
+        transform:
+          - type: replace_text
+            field: location
+            search: "Hauptkirche"
+            replace: "Campus Hauptkirche"
 
   externe_events:
     label: "Externe Events"
     url: "https://example.org/events.ics"
     cache_ttl: "30m"
     filters:
-      - name: "Nur Events mit Jahr im Titel (2026+)"
-        action: keep
+      - type: match
         match:
           summary:
             regex: "/20(2[6-9]|3[0-9])/"
+        on_match: keep
 
-      - name: "Kategorien ergänzen und Beschreibung markieren"
-        action: keep
+      - type: match
         match:
           categories:
             not_equals: ["Intern"]
-        transforms:
-          - field: categories
-            action: add
-            values: ["Extern", "Veranstaltung"]
-          - field: description
-            action: suffix
+        on_match: transform
+        transform:
+          - type: categories_add
+            value: "Extern"
+          - type: categories_add
+            value: "Veranstaltung"
+          - type: suffix_text
+            field: description
             value: "\n\nQuelle: Externer Kalender"
 
 exports:
@@ -104,19 +107,19 @@ exports:
     include_sources:
       - source: technik
         filters:
-          - name: "Nur Sonntagsdienste"
-            action: keep
+          - type: match
             match:
               summary:
                 contains: "Sonntag"
-            transforms:
-              - field: summary
-                action: prefix
+            on_match: transform
+            transform:
+              - type: prefix_text
+                field: summary
                 value: "[Dienst] "
-              - field: description
-                action: replace_regex
+              - type: replace_regex
+                field: description
                 pattern: "/\\s+/"
-                value: " "
+                replacement: " "
 
   oeffentlich:
     title: "Öffentlicher Kombi-Kalender"
@@ -126,18 +129,18 @@ exports:
     include_sources:
       - source: kirche
         filters:
-          - name: "Nur Gottesdienst und Gebet"
-            action: keep
+          - type: match
             match:
               summary:
                 contains_any: ["Gottesdienst", "Gebet", "Andacht"]
+            on_match: keep
       - source: externe_events
         filters:
-          - name: "Interne Kategorien rausfiltern"
-            action: remove
+          - type: match
             match:
               categories:
                 contains: "Intern"
+            on_match: remove
 
   social_preview:
     title: "Social Preview (nur Highlights)"
@@ -147,21 +150,20 @@ exports:
     include_sources:
       - source: kirche
         filters:
-          - name: "Nur Abendveranstaltungen"
-            action: keep
+          - type: match
             match:
               summary:
                 contains_any: ["Abend", "Night", "Konzert"]
-            transforms:
-              - field: summary
-                action: prefix
+            on_match: transform
+            transform:
+              - type: prefix_text
+                field: summary
                 value: "⭐ "
-              - field: summary
-                action: suffix
+              - type: suffix_text
+                field: summary
                 value: " (Highlight)"
-              - field: categories
-                action: add
-                values: ["Highlight"]
+              - type: categories_add
+                value: "Highlight"
 
   transform_all_demo:
     title: "Transform All Demo"
@@ -171,11 +173,11 @@ exports:
     include_sources:
       - source: kirche
         filters:
-          - name: "Globaler Prefix für alle Events"
-            action: keep
+          - type: match
             match:
               any: true
-            transforms:
-              - field: summary
-                action: prefix
+            on_match: transform
+            transform:
+              - type: prefix_text
+                field: summary
                 value: "[Global] "

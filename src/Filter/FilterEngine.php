@@ -10,8 +10,8 @@ use App\Config\Dto\FilterRuleConfig;
 final readonly class FilterEngine
 {
     public function __construct(
-        private MatchEvaluator $matchEvaluator,
-        private TransformEngine $transformEngine,
+        private MatchEvaluator $matchEvaluator = new MatchEvaluator(),
+        private TransformEngine $transformEngine = new TransformEngine(),
     ) {
     }
 
@@ -30,37 +30,39 @@ final readonly class FilterEngine
             $ruleName = $this->ruleName($rule, $index);
             $before = count($currentEvents);
 
-            if ($rule->match === []) {
+            if ($rule->match === [] && $rule->type === 'match') {
                 $warnings[] = sprintf("Rule '%s' has empty match config and was skipped.", $ruleName);
                 $perRuleRemovedCount[$ruleName] = 0;
                 $perRuleKeptCount[$ruleName] = $before;
                 continue;
             }
 
-            $action = $this->normalizeAction($rule->action);
             $nextEvents = [];
             $removed = 0;
 
             foreach ($currentEvents as $event) {
-                $isMatch = $this->matchEvaluator->matches($event, $rule->match);
+                $matches = $this->matches($event, $rule);
 
-                if ($action === 'remove') {
-                    if ($isMatch) {
-                        $removed++;
-                        continue;
-                    }
-
+                if (!$matches) {
                     $nextEvents[] = $event;
                     continue;
                 }
 
-                if ($isMatch) {
-                    $this->transformEngine->apply($event, $rule);
-                    $nextEvents[] = CalendarEvent::fromVEvent($event->originalEvent);
+                if ($rule->onMatch === 'remove') {
+                    $removed++;
                     continue;
                 }
 
-                $removed++;
+                if ($rule->onMatch === 'transform') {
+                    $this->transformEngine->apply($event, $rule);
+                }
+
+                $nextEvents[] = CalendarEvent::fromVEvent($event->originalEvent);
+
+                if ($rule->stopProcessing) {
+                    $nextEvents = array_merge($nextEvents, array_slice($currentEvents, array_search($event, $currentEvents, true) + 1));
+                    break;
+                }
             }
 
             $currentEvents = $nextEvents;
@@ -80,17 +82,17 @@ final readonly class FilterEngine
         );
     }
 
-    private function normalizeAction(string $action): string
+    private function matches(CalendarEvent $event, FilterRuleConfig $rule): bool
     {
-        $normalized = strtolower(trim($action));
+        if ($rule->type !== 'match') {
+            return false;
+        }
 
-        return $normalized === 'keep' ? 'keep' : 'remove';
+        return $this->matchEvaluator->matches($event, $rule->match);
     }
 
     private function ruleName(FilterRuleConfig $rule, int $index): string
     {
-        $name = trim($rule->name);
-
-        return $name !== '' ? $name : sprintf('rule_%d', $index + 1);
+        return sprintf('%s_%d', $rule->type, $index + 1);
     }
 }

@@ -7,8 +7,6 @@ namespace App\Calendar;
 use App\Config\Dto\AppConfig;
 use App\Config\Dto\ExportConfig;
 use App\Filter\FilterEngine;
-use App\Filter\MatchEvaluator;
-use App\Filter\TransformEngine;
 use App\Http\Logger\LoggerInterface;
 use Sabre\VObject\Component\VCalendar;
 
@@ -36,7 +34,7 @@ final readonly class ExportBuilder
         $this->logger->info('export_generation_start', ['slug' => $export->slug, 'sources' => count($sourceMap)]);
         $successfulSources = 0;
         $events = [];
-        $filterEngine = new FilterEngine(new MatchEvaluator(), new TransformEngine());
+        $filterEngine = new FilterEngine();
 
         foreach ($export->includeSources as $includedSource) {
             $result = $fetchResults[$includedSource->source] ?? null;

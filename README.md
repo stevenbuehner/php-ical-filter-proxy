@@ -71,11 +71,11 @@ sources:
     url: "https://example.com/calendar.ics"
     cache_ttl: "15m"
     filters:
-      - name: "Source Filter"
-        action: remove
+      - type: match
         match:
           summary:
             contains: "Intern"
+        on_match: remove
 
 exports:
   export_key:
@@ -86,14 +86,14 @@ exports:
     include_sources:
       - source: source_key
         filters:
-          - name: "Export Filter"
-            action: keep
+          - type: match
             match:
               summary:
                 contains: "Technik"
-            transforms:
-              - field: summary
-                action: prefix
+            on_match: transform
+            transform:
+              - type: prefix_text
+                field: summary
                 value: "[Tech] "
 ```
 
@@ -115,6 +115,7 @@ Pro Export:
 - `token` Pflicht (Zugriffsschutz)
 - `cache_ttl` optional
 - `include_sources` Pflicht (mindestens eine referenzierte Source)
+- `filters` pro Included Source arbeiten mit `type`, `match`, `on_match` und optional `transform`
 
 ## 9. Erklärung Source-Filter
 Source-Filter leben unter `sources.<key>.filters` und betreffen nur diese einzelne Quelle, bevor sie in Exporte eingeht.
@@ -122,10 +123,11 @@ Source-Filter leben unter `sources.<key>.filters` und betreffen nur diese einzel
 ## 10. Erklärung Export-Filter
 Export-Filter leben unter `exports.<key>.include_sources[].filters` und werden pro inkludierter Quelle im Kontext eines Exports angewendet.
 
-## 11. Erklärung action keep/remove
-- `action: remove`: entferne alle Events, die matchen
-- `action: keep`: entferne alle Events, die **nicht** matchen
-- fehlt `action`, wird `remove` verwendet
+## 11. Erklärung Filter-Verhalten
+- `on_match: remove`: entferne alle Events, die matchen
+- `on_match: keep`: behalte Events unverändert
+- `on_match: transform`: führe `transform[]` aus und behalte das Event
+- `stop_processing: true`: breche die weitere Verarbeitung für dieses Event ab
 
 Regeln werden strikt in YAML-Reihenfolge ausgeführt.
 
@@ -237,13 +239,13 @@ match:
 ```
 
 ## 13. Erklärung Transformations
-Transformationen laufen nach erfolgreichem Match einer Regel.
+Transformationen laufen nach erfolgreichem Match einer Regel und werden als Liste von `type`-Einträgen angegeben.
 
 Unterstützt:
-- Textfelder (`summary`, `description`, `location`, `url`): `prefix`, `suffix`, `replace`, `replace_regex`, `remove`
-- Kategorien: `add`, `remove`
-- Datum: `start.modify`, `end.modify`
-- Zeitverschiebung für Start und Ende in einem Schritt: `field: time` mit `action: adjust_times`
+- Textfelder: `prefix_text`, `suffix_text`, `replace_text`, `replace_regex`, `remove_property`
+- Kategorien: `categories_add`, `categories_remove`
+- Datum: `modify_datetime`
+- Zeitverschiebung für Start und Ende in einem Schritt: `adjust_times`
 
 Zeitverschiebung:
 - `start.reference` und `end.reference` können `current_start` oder `current_end` sein
@@ -262,29 +264,27 @@ Hinweis:
 Beispiel für "immer transformieren":
 ```yaml
 filters:
-  - name: "Immer transformieren"
-    action: keep
+  - type: match
     match:
       any: true
-    transforms:
-      - field: summary
-        action: prefix
+    on_match: transform
+    transform:
+      - type: prefix_text
+        field: summary
         value: "[Global] "
-      - field: categories
-        action: add
-        values: ["Standard"]
+      - type: categories_add
+        value: "Standard"
 ```
 
 Beispiel für Start/Ende relativ zum aktuellen Start:
 ```yaml
 filters:
-  - name: "Termin verschieben"
-    action: keep
+  - type: match
     match:
       any: true
-    transforms:
-      - field: time
-        action: adjust_times
+    on_match: transform
+    transform:
+      - type: adjust_times
         start:
           reference: current_start
           offset: "-20m"
@@ -302,8 +302,7 @@ filters:
       summary:
         contains: "Workshop"
     transforms:
-      - field: time
-        action: adjust_times
+      - type: adjust_times
         start:
           reference: current_end
           offset: "-1h"
@@ -320,8 +319,7 @@ filters:
     match:
       any: true
     transforms:
-      - field: time
-        action: adjust_times
+      - type: adjust_times
         start:
           reference: current_start
           offset: "+30s"

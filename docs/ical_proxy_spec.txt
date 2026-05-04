@@ -73,28 +73,32 @@ exports:
     include_sources:
       - source: gemeinde
         filters:
-          - name: "Nur Technik"
-            action: keep
+          - type: match
             match:
               summary:
                 contains: "Technik"
+            on_match: keep
 
 6. Filterlogik
 - Regeln werden sequenziell ausgeführt
-- action: remove → entfernt passende Events
-- action: keep → entfernt NICHT passende Events
+- `type` definiert den Filtertyp
+- `on_match: remove` → entfernt passende Events
+- `on_match: keep` → behält passende Events unverändert
+- `on_match: transform` → führt `transform[]` aus
+- `stop_processing: true` bricht die Verarbeitung des betroffenen Events ab
 - Mehrere Match-Felder innerhalb einer Regel sind per AND verknüpft
 
 7. Match-Operatoren
 contains, contains_any, contains_all, not_contains, regex, equals, empty
 
 8. Transformationen (optional)
-prefix, replace_regex, remove
 - Transformationen sind pro Filter konfigurierbar
-- Zielfelder sind pro Transformation konfigurierbar
-- Feldnamen sind in der Konfiguration ausschließlich lowercase: summary, description, location, uid, dtstart, dtend
-- Mapping auf ICS-Properties erfolgt intern (z. B. summary → SUMMARY)
-- Zusätzlich: time-adjustments über `field: time` und `action: adjust_times`
+- jeder Transform ist ein Objekt mit `type`
+- Unterstützte Typen: `prefix_text`, `suffix_text`, `replace_text`, `replace_regex`, `remove_property`, `categories_add`, `categories_remove`, `modify_datetime`, `adjust_times`
+- Textfelder nutzen `field`
+- Kategorien arbeiten über `value`
+- Datum/Zeit nutzt `field: start|end`
+- `adjust_times` akzeptiert `start` und `end` mit `reference`/`offset`
 - Struktur:
   - start.reference: current_start|current_end
   - start.offset: +/-<Zahl>s|m|h
@@ -139,14 +143,14 @@ Response: text/calendar
 - Wenn alle Quellen defekt sind, liefert der Export trotzdem HTTP 200 mit einem gültigen (ggf. leeren) ICS-Feed
 
 Beispiel (Transformation pro Feld im Filter):
-transforms:
-  - field: summary
-    action: prefix
+transform:
+  - type: prefix_text
+    field: summary
     value: "[Technik] "
-  - field: description
-    action: replace_regex
+  - type: replace_regex
+    field: description
     pattern: "intern"
-    replace: "extern"
+    replacement: "extern"
 
 16. Erweiterbarkeit
 - Admin GUI vorbereitet
