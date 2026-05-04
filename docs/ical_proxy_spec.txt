@@ -94,6 +94,14 @@ prefix, replace_regex, remove
 - Zielfelder sind pro Transformation konfigurierbar
 - Feldnamen sind in der Konfiguration ausschließlich lowercase: summary, description, location, uid, dtstart, dtend
 - Mapping auf ICS-Properties erfolgt intern (z. B. summary → SUMMARY)
+- Zusätzlich: time-adjustments über `field: time` und `action: adjust_times`
+- Struktur:
+  - start.reference: current_start|current_end
+  - start.offset: +/-<Zahl>s|m|h
+  - end.reference: current_start|current_end
+  - end.offset: +/-<Zahl>s|m|h
+- All-Day-Events werden ignoriert
+- DTEND wird nie vor DTSTART geschrieben; bei Bedarf wird automatisch auf DTSTART korrigiert
 
 9. Caching
 - Source Cache (extern)

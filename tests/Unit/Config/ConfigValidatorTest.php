@@ -29,6 +29,20 @@ exports:
       strategy: "merge_titles_csv"
     include_sources:
       - source: s1
+        filters:
+          - name: "Zeiten anpassen"
+            action: keep
+            match:
+              any: true
+            transforms:
+              - field: time
+                action: adjust_times
+                start:
+                  reference: current_start
+                  offset: "-20m"
+                end:
+                  reference: current_start
+                  offset: "10m"
 YAML);
 
         $cacheRoot = sys_get_temp_dir() . '/ical_cache_' . uniqid('', true);

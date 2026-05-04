@@ -18,18 +18,31 @@ sources:
           summary:
             regex: "/20(2[6-9]|3[0-9])/"
 
-      - name: "Leere URL ergänzen und Titel vereinheitlichen"
-        action: keep
-        match:
-          url:
-            empty: true
-        transforms:
+          - name: "Leere URL ergänzen und Titel vereinheitlichen"
+            action: keep
+            match:
+              url:
+                empty: true
+            transforms:
           - field: url
             action: replace
             value: "https://example.org/kalender"
-          - field: summary
-            action: prefix
-            value: "[Kirche] "
+              - field: summary
+                action: prefix
+                value: "[Kirche] "
+          - name: "Zeiten anpassen"
+            action: keep
+            match:
+              any: true
+            transforms:
+              - field: time
+                action: adjust_times
+                start:
+                  reference: current_start
+                  offset: "-20m"
+                end:
+                  reference: current_start
+                  offset: "10m"
 
   technik:
     label: "Technikplan"

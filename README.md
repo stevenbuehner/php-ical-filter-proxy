@@ -243,6 +243,15 @@ Unterstützt:
 - Textfelder (`summary`, `description`, `location`, `url`): `prefix`, `suffix`, `replace`, `replace_regex`, `remove`
 - Kategorien: `add`, `remove`
 - Datum: `start.modify`, `end.modify`
+- Zeitverschiebung für Start und Ende in einem Schritt: `field: time` mit `action: adjust_times`
+
+Zeitverschiebung:
+- `start.reference` und `end.reference` können `current_start` oder `current_end` sein
+- `offset` akzeptiert Sekunden, Minuten und Stunden mit optionalem Vorzeichen, z. B. `+30s`, `-20m`, `+2h`
+- fehlende `reference`-Werte werden standardmäßig als `current_start` für `start` und `current_end` für `end` behandelt
+- All-Day-Events werden ignoriert
+- `DTEND` wird nie vor `DTSTART` geschrieben; falls nötig, wird `DTEND` automatisch auf `DTSTART` korrigiert
+- wenn `DURATION` vorhanden ist, wird sie zur neuen Zeitspanne passend neu berechnet
 
 Hinweis:
 - Bei `action: keep` sind Transformationen typischerweise relevant
@@ -264,6 +273,61 @@ filters:
       - field: categories
         action: add
         values: ["Standard"]
+```
+
+Beispiel für Start/Ende relativ zum aktuellen Start:
+```yaml
+filters:
+  - name: "Termin verschieben"
+    action: keep
+    match:
+      any: true
+    transforms:
+      - field: time
+        action: adjust_times
+        start:
+          reference: current_start
+          offset: "-20m"
+        end:
+          reference: current_start
+          offset: "10m"
+```
+
+Beispiel mit `current_end` und Stunden:
+```yaml
+filters:
+  - name: "Dauer anpassen"
+    action: keep
+    match:
+      summary:
+        contains: "Workshop"
+    transforms:
+      - field: time
+        action: adjust_times
+        start:
+          reference: current_end
+          offset: "-1h"
+        end:
+          reference: current_end
+          offset: "+2h"
+```
+
+Beispiel mit Sekunden und vorhandener `DURATION`:
+```yaml
+filters:
+  - name: "Fein verschieben"
+    action: keep
+    match:
+      any: true
+    transforms:
+      - field: time
+        action: adjust_times
+        start:
+          reference: current_start
+          offset: "+30s"
+        end:
+          reference: current_start
+          offset: "+90s"
 ```
 
 ## 14. Event Migration pro Export

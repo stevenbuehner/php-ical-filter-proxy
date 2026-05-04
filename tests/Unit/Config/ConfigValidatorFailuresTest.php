@@ -128,4 +128,50 @@ YAML);
         self::assertContains('exports.e1.event_migration.gap_tolerance', $paths);
         self::assertContains('exports.e1.event_migration.strategy', $paths);
     }
+
+    public function testTimeTransformValidationReportsBadReferenceAndOffset(): void
+    {
+        $configFile = tempnam(sys_get_temp_dir(), 'cfgtime_');
+        self::assertNotFalse($configFile);
+
+        file_put_contents($configFile, <<<'YAML'
+sources:
+  s1:
+    url: "https://example.com/a.ics"
+exports:
+  e1:
+    title: "Export"
+    slug: "e1"
+    token: "secret"
+    include_sources:
+      - source: s1
+        filters:
+          - name: "Time"
+            action: keep
+            match:
+              any: true
+            transforms:
+              - field: time
+                action: adjust_times
+                start:
+                  reference: invalid
+                  offset: "10x"
+                end:
+                  reference: current_end
+                  offset: "-90s"
+YAML);
+
+        $cacheRoot = sys_get_temp_dir() . '/ical_cache_' . uniqid('', true);
+        mkdir($cacheRoot . '/feeds', 0777, true);
+        mkdir($cacheRoot . '/exports', 0777, true);
+
+        $errors = (new ConfigValidator())->validateFile($configFile, $cacheRoot . '/feeds', $cacheRoot . '/exports');
+        $messages = array_map(static fn ($e): string => $e->message, $errors);
+        $paths = array_map(static fn ($e): string => $e->path, $errors);
+
+        self::assertContains('Time reference is invalid.', $messages);
+        self::assertContains('Time offset is invalid.', $messages);
+        self::assertContains('exports.e1.include_sources[0].filters[0].transforms[0].start.reference', $paths);
+        self::assertContains('exports.e1.include_sources[0].filters[0].transforms[0].start.offset', $paths);
+    }
 }

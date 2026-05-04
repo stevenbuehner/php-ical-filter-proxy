@@ -15,10 +15,12 @@ final readonly class ConfigValidator
     private const INCLUDED_SOURCE_ALLOWED_KEYS = ['source', 'filters'];
     private const EVENT_MIGRATION_ALLOWED_KEYS = ['enabled', 'gap_tolerance', 'strategy'];
     private const FILTER_ALLOWED_KEYS = ['name', 'action', 'match', 'transform', 'transforms'];
+    private const TRANSFORM_ALLOWED_KEYS = ['field', 'action', 'value', 'search', 'replace', 'pattern', 'replacement', 'start', 'end'];
     private const MATCH_FIELDS = ['any', 'summary', 'description', 'location', 'url', 'categories', 'date'];
     private const MATCH_OPERATORS = [
         'contains', 'contains_any', 'contains_all', 'not_contains', 'equals', 'not_equals', 'regex', 'empty',
     ];
+    private const TIME_ADJUST_REFERENCES = ['current_start', 'current_end'];
     private const EVENT_MIGRATION_STRATEGIES = ['merge_titles_csv'];
 
     /** @return list<ValidationError> */
@@ -257,6 +259,76 @@ final readonly class ConfigValidator
                         }
                     }
                 }
+            }
+
+            if (array_key_exists('transforms', $filter)) {
+                foreach ($this->validateTransforms($filter['transforms'], $filterPath . '.transforms') as $e) { $errors[] = $e; }
+            } elseif (array_key_exists('transform', $filter)) {
+                $transform = $filter['transform'];
+                if (is_array($transform)) {
+                    foreach ($this->validateTransforms([$transform], $filterPath . '.transform') as $e) { $errors[] = $e; }
+                } else {
+                    $errors[] = new ValidationError('invalid_type', 'Filter transform must be a mapping.', $filterPath . '.transform', 'mapping', gettype($transform));
+                }
+            }
+        }
+
+        return $errors;
+    }
+
+    /** @return list<ValidationError> */
+    private function validateTransforms(mixed $transforms, string $path): array
+    {
+        $errors = [];
+        if (!is_array($transforms)) {
+            return [new ValidationError('invalid_type', 'Transforms must be a list.', $path, 'list', gettype($transforms))];
+        }
+
+        foreach ($transforms as $index => $transform) {
+            $transformPath = $path . '[' . (int) $index . ']';
+            if (!is_array($transform)) {
+                $errors[] = new ValidationError('invalid_type', 'Transform must be a mapping.', $transformPath, 'mapping', gettype($transform));
+                continue;
+            }
+
+            foreach ($this->validateUnknownKeys($transform, self::TRANSFORM_ALLOWED_KEYS, $transformPath) as $e) { $errors[] = $e; }
+
+            $field = strtolower(trim((string) ($transform['field'] ?? '')));
+            $action = strtolower(trim((string) ($transform['action'] ?? '')));
+
+            if ($field === 'time' && in_array($action, ['adjust', 'adjust_times'], true)) {
+                foreach (['start', 'end'] as $side) {
+                    $sidePath = $transformPath . '.' . $side;
+                    if (!array_key_exists($side, $transform)) {
+                        continue;
+                    }
+                    if (!is_array($transform[$side])) {
+                        $errors[] = new ValidationError('invalid_type', ucfirst($side) . ' time transform must be a mapping.', $sidePath, 'mapping', gettype($transform[$side]));
+                        continue;
+                    }
+
+                    foreach ($this->validateUnknownKeys($transform[$side], ['reference', 'offset'], $sidePath) as $e) { $errors[] = $e; }
+
+                    if (array_key_exists('reference', $transform[$side])) {
+                        $reference = strtolower(trim((string) $transform[$side]['reference']));
+                        if (!in_array($reference, self::TIME_ADJUST_REFERENCES, true)) {
+                            $errors[] = new ValidationError('invalid_value', 'Time reference is invalid.', $sidePath . '.reference', implode('|', self::TIME_ADJUST_REFERENCES), $reference);
+                        }
+                    }
+
+                    if (array_key_exists('offset', $transform[$side])) {
+                        $offset = (string) $transform[$side]['offset'];
+                        if (!preg_match('/^[+-]?\d+(s|m|h)$/', $offset)) {
+                            $errors[] = new ValidationError('invalid_value', 'Time offset is invalid.', $sidePath . '.offset', '+20m|-10m|30s|2h', $offset);
+                        }
+                    }
+                }
+                continue;
+            }
+
+            if (in_array($field, ['summary', 'description', 'location', 'url', 'categories', 'start', 'end'], true) === false) {
+                $errors[] = new ValidationError('invalid_value', 'Unsupported transform field.', $transformPath . '.field', 'summary|description|location|url|categories|start|end|time', $field);
+                continue;
             }
         }
 

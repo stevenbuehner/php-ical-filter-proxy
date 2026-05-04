@@ -68,6 +68,29 @@ final class FeedFetcherSourceFiltersAndTransformsTest extends TestCase
         self::assertSame('20260502T090000', $events[0]->dtstart);
     }
 
+    public function testSourceTimeAdjustTransformIsApplied(): void
+    {
+        $events = $this->fetchWithFilters([
+            new FilterRuleConfig('transform-time', 'keep', ['any' => true], [
+                [
+                    'field' => 'time',
+                    'action' => 'adjust_times',
+                    'start' => [
+                        'reference' => 'current_start',
+                        'offset' => '-20m',
+                    ],
+                    'end' => [
+                        'reference' => 'current_start',
+                        'offset' => '10m',
+                    ],
+                ],
+            ]),
+        ]);
+
+        self::assertSame('20260501T084000', $events[0]->dtstart);
+        self::assertSame('20260501T091000', $events[0]->dtend);
+    }
+
     /** @return list<\App\Calendar\CalendarEvent> */
     private function fetchWithFilters(array $filters): array
     {

@@ -29,5 +29,13 @@ exports:
               - field: categories
                 action: add
                 value: "Technik"
-              - field: url
-                action: remove
+          - field: url
+            action: remove
+          - field: time
+            action: adjust_times
+            start:
+              reference: current_start
+              offset: "-20m"
+            end:
+              reference: current_start
+              offset: "10m"
