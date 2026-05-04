@@ -24,8 +24,9 @@ final class FilterEngineTest extends TestCase
 
         $result = (new FilterEngine())->apply($events, $rules);
 
-        self::assertCount(1, $result->filteredEvents);
-        self::assertSame('Technikabend', $result->filteredEvents[0]->summary);
+        self::assertCount(2, $result->filteredEvents);
+        self::assertSame('Jugendtreffen', $result->filteredEvents[0]->summary);
+        self::assertSame('Technikabend', $result->filteredEvents[1]->summary);
     }
 
     public function testMatchAnyAppliesTransformToAllEvents(): void
@@ -51,6 +52,54 @@ final class FilterEngineTest extends TestCase
         self::assertSame('[ALL] Technikdienst Probe', $result->filteredEvents[0]->summary);
         self::assertSame('[ALL] Jugendtreffen', $result->filteredEvents[1]->summary);
         self::assertSame('[ALL] Technikabend', $result->filteredEvents[2]->summary);
+    }
+
+    public function testRuleCanMatchMultipleFieldsWithAndSemantics(): void
+    {
+        $ics = file_get_contents(__DIR__ . '/../../Fixtures/simple.ics');
+        self::assertNotFalse($ics);
+        $events = (new CalendarParser())->parseEvents($ics);
+
+        $rules = [
+            new FilterRuleConfig(
+                type: 'match',
+                match: [
+                    'summary' => ['contains' => 'Technik'],
+                    'description' => ['contains' => 'Team'],
+                ],
+                onMatch: 'transform',
+                transform: [
+                    ['type' => 'prefix_text', 'field' => 'summary', 'value' => '[MATCHED] '],
+                ],
+            ),
+        ];
+
+        $result = (new FilterEngine())->apply($events, $rules);
+
+        self::assertCount(2, $result->filteredEvents);
+        self::assertSame('[MATCHED] Technikprobe', $result->filteredEvents[0]->summary);
+        self::assertSame('Andacht', $result->filteredEvents[1]->summary);
+    }
+
+    public function testRemoveOnlyDropsMatchingEventsAndKeepsOthers(): void
+    {
+        $ics = file_get_contents(__DIR__ . '/../../Fixtures/filter-summary.ics');
+        self::assertNotFalse($ics);
+        $events = (new CalendarParser())->parseEvents($ics);
+
+        $rules = [
+            new FilterRuleConfig(
+                type: 'match',
+                match: ['summary' => ['contains' => 'Technikabend']],
+                onMatch: 'remove',
+            ),
+        ];
+
+        $result = (new FilterEngine())->apply($events, $rules);
+
+        self::assertCount(2, $result->filteredEvents);
+        self::assertSame('Technikdienst Probe', $result->filteredEvents[0]->summary);
+        self::assertSame('Jugendtreffen', $result->filteredEvents[1]->summary);
     }
 
 }

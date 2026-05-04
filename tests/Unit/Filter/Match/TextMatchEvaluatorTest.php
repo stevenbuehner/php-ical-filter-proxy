@@ -19,6 +19,6 @@ final class TextMatchEvaluatorTest extends TestCase
         self::assertTrue($evaluator->matches('Technikprobe', 'equals', 'technikprobe'));
         self::assertTrue($evaluator->matches('Technikprobe', 'not_equals', 'Andacht'));
         self::assertTrue($evaluator->matches('Technikprobe', 'regex', '/^Technik/i'));
-        self::assertFalse($evaluator->matches('', 'empty', true));
+        self::assertTrue($evaluator->matches('', 'empty', true));
     }
 }

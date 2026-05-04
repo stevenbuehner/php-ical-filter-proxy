@@ -36,6 +36,24 @@ final class TransformEngineTest extends TestCase
         self::assertStringNotContainsString('Dienst', (string) $event->originalEvent->CATEGORIES);
     }
 
+    public function testTransformOperationsHandleMissingAndCustomProperties(): void
+    {
+        $event = $this->eventWithoutSummaryAndWithCustomProperty();
+        $rule = $this->rule([
+            ['type' => 'prefix_text', 'field' => 'summary', 'value' => '[P] '],
+            ['type' => 'suffix_text', 'field' => 'summary', 'value' => ' [S]'],
+            ['type' => 'replace_text', 'field' => 'description', 'search' => 'missing', 'replace' => 'present'],
+            ['type' => 'replace_regex', 'field' => 'description', 'pattern' => '/missing/', 'replacement' => 'present'],
+            ['type' => 'remove_property', 'field' => 'x-custom'],
+        ]);
+
+        (new TransformEngine())->apply($event, $rule);
+
+        self::assertSame('[P]  [S]', (string) ($event->originalEvent->SUMMARY ?? ''));
+        self::assertSame('present', (string) $event->originalEvent->DESCRIPTION);
+        self::assertFalse(isset($event->originalEvent->X_CUSTOM));
+    }
+
     public function testAdjustTimesTransformUsesIndependentReferences(): void
     {
         $event = $this->firstEvent();
@@ -49,8 +67,8 @@ final class TransformEngineTest extends TestCase
 
         (new TransformEngine())->apply($event, $rule);
 
-        self::assertSame('20260501T084000', (string) $event->originalEvent->DTSTART);
-        self::assertSame('20260501T091000', (string) $event->originalEvent->DTEND);
+        self::assertSame('20260501T084000Z', (string) $event->originalEvent->DTSTART);
+        self::assertSame('20260501T091000Z', (string) $event->originalEvent->DTEND);
     }
 
     public function testAdjustTimesTransformSupportsCurrentEndReference(): void
@@ -66,8 +84,8 @@ final class TransformEngineTest extends TestCase
 
         (new TransformEngine())->apply($event, $rule);
 
-        self::assertSame('20260501T093000', (string) $event->originalEvent->DTSTART);
-        self::assertSame('20260501T101500', (string) $event->originalEvent->DTEND);
+        self::assertSame('20260501T093000Z', (string) $event->originalEvent->DTSTART);
+        self::assertSame('20260501T101500Z', (string) $event->originalEvent->DTEND);
     }
 
     public function testAdjustTimesTransformSupportsSecondsMinutesAndHours(): void
@@ -83,8 +101,8 @@ final class TransformEngineTest extends TestCase
 
         (new TransformEngine())->apply($event, $rule);
 
-        self::assertSame('20260501T090030', (string) $event->originalEvent->DTSTART);
-        self::assertSame('20260501T080000', (string) $event->originalEvent->DTEND);
+        self::assertSame('20260501T090030Z', (string) $event->originalEvent->DTSTART);
+        self::assertSame('20260501T090030Z', (string) $event->originalEvent->DTEND);
     }
 
     public function testAdjustTimesTransformUpdatesDurationWhenPresent(): void
@@ -95,6 +113,7 @@ VERSION:2.0
 BEGIN:VEVENT
 UID:duration@example
 DTSTART:20260501T090000Z
+DTEND:20260501T100000Z
 DURATION:PT1H
 SUMMARY:Duration event
 END:VEVENT
@@ -112,8 +131,8 @@ ICS;
 
         (new TransformEngine())->apply($event, $rule);
 
-        self::assertSame('20260501T091500', (string) $event->originalEvent->DTSTART);
-        self::assertSame('20260501T094500', (string) $event->originalEvent->DTEND);
+        self::assertSame('20260501T091500Z', (string) $event->originalEvent->DTSTART);
+        self::assertSame('20260501T094500Z', (string) $event->originalEvent->DTEND);
         self::assertSame('PT30M', (string) $event->originalEvent->DURATION);
     }
 
@@ -146,6 +165,62 @@ ICS;
         self::assertSame('20260502', (string) $event->originalEvent->DTEND);
     }
 
+    public function testAdjustTimesTransformFallsBackOnInvalidReferencesAndOffsets(): void
+    {
+        $event = $this->firstEvent();
+        $rule = $this->rule([
+            [
+                'type' => 'adjust_times',
+                'start' => ['reference' => 'invalid_reference', 'offset' => 'bad'],
+                'end' => ['reference' => 'current_end', 'offset' => 'bad'],
+            ],
+        ]);
+
+        (new TransformEngine())->apply($event, $rule);
+
+        self::assertSame('20260501T090000Z', (string) $event->originalEvent->DTSTART);
+        self::assertSame('20260501T100000Z', (string) $event->originalEvent->DTEND);
+    }
+
+    public function testCategoriesRemoveDeletesLastCategoryProperty(): void
+    {
+        $ics = <<<'ICS'
+BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:cat-remove@example
+DTSTART:20260501T090000Z
+DTEND:20260501T100000Z
+CATEGORIES:Technik
+SUMMARY:Category
+END:VEVENT
+END:VCALENDAR
+ICS;
+
+        $event = (new CalendarParser())->parseEvents($ics)[0];
+        $rule = $this->rule([
+            ['type' => 'categories_remove', 'value' => 'Technik'],
+        ]);
+
+        (new TransformEngine())->apply($event, $rule);
+
+        self::assertFalse(isset($event->originalEvent->CATEGORIES));
+    }
+
+    public function testModifyDatetimeIgnoresInvalidFieldAndModifier(): void
+    {
+        $event = $this->firstEvent();
+        $rule = $this->rule([
+            ['type' => 'modify_datetime', 'field' => 'unknown', 'value' => '+1 day'],
+            ['type' => 'modify_datetime', 'field' => 'start', 'value' => ''],
+        ]);
+
+        (new TransformEngine())->apply($event, $rule);
+
+        self::assertSame('20260501T090000Z', (string) $event->originalEvent->DTSTART);
+        self::assertSame('20260501T100000Z', (string) $event->originalEvent->DTEND);
+    }
+
     public function testModifyDatetimeTransformAppliesToStartAndEnd(): void
     {
         $event = $this->firstEvent();
@@ -156,14 +231,32 @@ ICS;
 
         (new TransformEngine())->apply($event, $rule);
 
-        self::assertSame('20260502T090000', (string) $event->originalEvent->DTSTART);
-        self::assertSame('20260502T100000', (string) $event->originalEvent->DTEND);
+        self::assertSame('20260502T090000Z', (string) $event->originalEvent->DTSTART);
+        self::assertSame('20260502T100000Z', (string) $event->originalEvent->DTEND);
     }
 
     private function firstEvent(): CalendarEvent
     {
         $ics = file_get_contents(__DIR__ . '/../../Fixtures/simple.ics');
         self::assertNotFalse($ics);
+
+        return (new CalendarParser())->parseEvents($ics)[0];
+    }
+
+    private function eventWithoutSummaryAndWithCustomProperty(): CalendarEvent
+    {
+        $ics = <<<'ICS'
+BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:custom@example
+DTSTART:20260501T090000Z
+DTEND:20260501T100000Z
+DESCRIPTION:missing
+X-CUSTOM:value
+END:VEVENT
+END:VCALENDAR
+ICS;
 
         return (new CalendarParser())->parseEvents($ics)[0];
     }

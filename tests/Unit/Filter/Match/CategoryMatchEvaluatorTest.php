@@ -18,6 +18,6 @@ final class CategoryMatchEvaluatorTest extends TestCase
         self::assertTrue($evaluator->matches(['Technik', 'Dienst'], 'contains_all', ['technik', 'dienst']));
         self::assertTrue($evaluator->matches(['Technik', 'Dienst'], 'equals', ['Dienst', 'Technik']));
         self::assertTrue($evaluator->matches(['Technik', 'Dienst'], 'not_equals', ['Andacht']));
-        self::assertFalse($evaluator->matches([], 'empty', true));
+        self::assertTrue($evaluator->matches([], 'empty', true));
     }
 }

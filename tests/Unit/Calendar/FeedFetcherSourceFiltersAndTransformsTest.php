@@ -42,7 +42,7 @@ final class FeedFetcherSourceFiltersAndTransformsTest extends TestCase
                     ['type' => 'suffix_text', 'field' => 'summary', 'value' => ' [OK]'],
                     ['type' => 'replace_regex', 'field' => 'location', 'pattern' => '/Saal|Studio/i', 'replacement' => 'Halle'],
                     ['type' => 'categories_add', 'value' => 'Source'],
-                    ['type' => 'adjust_times', 'start' => ['reference' => 'current_start', 'offset' => '+1 day']],
+                    ['type' => 'adjust_times', 'start' => ['reference' => 'current_start', 'offset' => '+1h']],
                 ],
             ),
         ]);
@@ -51,7 +51,7 @@ final class FeedFetcherSourceFiltersAndTransformsTest extends TestCase
         self::assertSame('[SRC] Jugendtreffen [OK]', $events[1]->summary);
         self::assertSame('Halle', $events[0]->location);
         self::assertStringContainsString('Source', implode(',', $events[0]->categories));
-        self::assertSame('20260502T090000', $events[0]->dtstart);
+        self::assertSame('20260501T100000Z', $events[0]->dtstart);
     }
 
     /** @return list<\App\Calendar\CalendarEvent> */

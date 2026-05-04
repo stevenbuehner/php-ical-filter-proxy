@@ -85,6 +85,7 @@ exports:
 - `on_match: remove` → entfernt passende Events
 - `on_match: keep` → behält passende Events unverändert
 - `on_match: transform` → führt `transform[]` aus
+- `match.any: true` → diese Regel trifft auf jedes Event zu
 - Mehrere Match-Felder innerhalb einer Regel sind per AND verknüpft
 
 7. Match-Operatoren
