@@ -8,6 +8,7 @@ use App\Cache\CacheKeyBuilder;
 use App\Cache\FileCache;
 use App\Cache\TtlParser;
 use App\Calendar\CalendarParser;
+use App\Calendar\EventMigrationEngine;
 use App\Calendar\FeedFetcher;
 use App\Config\ConfigLoader;
 use App\Filter\FilterEngine;
@@ -85,11 +86,12 @@ final class ExportPreviewCommand extends Command
         $results = $feedFetcher->fetchAll($sourceMap);
         $parser = new CalendarParser();
         $filterEngine = new FilterEngine(new MatchEvaluator(), new TransformEngine());
+        $migrationEngine = new EventMigrationEngine();
 
         $eventsBefore = 0;
         $eventsAfter = 0;
+        $eventsAfterMigration = 0;
         $successfulSources = 0;
-        $deduped = [];
         $duplicatesRemoved = 0;
         $finalEvents = [];
 
@@ -113,27 +115,37 @@ final class ExportPreviewCommand extends Command
             }
 
             $eventsAfter += count($events);
-
             foreach ($events as $event) {
-                $uid = $event->uid ?? '';
-                if ($uid !== '' && isset($deduped[$uid])) {
-                    $duplicatesRemoved++;
-                    continue;
-                }
-
-                if ($uid !== '') {
-                    $deduped[$uid] = true;
-                }
-
                 $finalEvents[] = $event;
             }
         }
+
+        $finalEvents = $migrationEngine->migrate($finalEvents, $export, $export->eventMigration);
+        $eventsAfterMigration = count($finalEvents);
+
+        $deduped = [];
+        $dedupedEvents = [];
+        foreach ($finalEvents as $event) {
+            $uid = $event->uid ?? '';
+            if ($uid !== '' && isset($deduped[$uid])) {
+                $duplicatesRemoved++;
+                continue;
+            }
+
+            if ($uid !== '') {
+                $deduped[$uid] = true;
+            }
+
+            $dedupedEvents[] = $event;
+        }
+        $finalEvents = $dedupedEvents;
 
         $io->section('Export Preview');
         $io->writeln(sprintf('Exportname: %s (%s)', $export->title, $export->slug));
         $io->writeln(sprintf('Sources: %d configured, %d successful', count($export->includeSources), $successfulSources));
         $io->writeln(sprintf('Events before filters: %d', $eventsBefore));
         $io->writeln(sprintf('Events after filters: %d', $eventsAfter));
+        $io->writeln(sprintf('Events after migration: %d', $eventsAfterMigration));
         $io->writeln(sprintf('Duplicates removed: %d', $duplicatesRemoved));
         $io->writeln(sprintf('Events exported: %d', count($finalEvents)));
 

@@ -4,19 +4,22 @@ declare(strict_types=1);
 
 namespace App\Config;
 
+use App\Config\Dto\EventMigrationConfig;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
 
 final readonly class ConfigValidator
 {
     private const SOURCE_ALLOWED_KEYS = ['label', 'url', 'cache_ttl', 'filters'];
-    private const EXPORT_ALLOWED_KEYS = ['title', 'slug', 'token', 'cache_ttl', 'include_sources'];
+    private const EXPORT_ALLOWED_KEYS = ['title', 'slug', 'token', 'cache_ttl', 'include_sources', 'event_migration'];
     private const INCLUDED_SOURCE_ALLOWED_KEYS = ['source', 'filters'];
+    private const EVENT_MIGRATION_ALLOWED_KEYS = ['enabled', 'gap_tolerance', 'strategy'];
     private const FILTER_ALLOWED_KEYS = ['name', 'action', 'match', 'transform', 'transforms'];
     private const MATCH_FIELDS = ['any', 'summary', 'description', 'location', 'url', 'categories', 'date'];
     private const MATCH_OPERATORS = [
         'contains', 'contains_any', 'contains_all', 'not_contains', 'equals', 'not_equals', 'regex', 'empty',
     ];
+    private const EVENT_MIGRATION_STRATEGIES = ['merge_titles_csv'];
 
     /** @return list<ValidationError> */
     public function validateFile(string $configFile, string $feedCacheDir, string $exportCacheDir): array
@@ -151,6 +154,10 @@ final readonly class ConfigValidator
                 foreach ($this->validateTtl((string) $exportData['cache_ttl'], $path . '.cache_ttl') as $e) { $errors[] = $e; }
             }
 
+            if (array_key_exists('event_migration', $exportData)) {
+                foreach ($this->validateEventMigration($exportData['event_migration'], $path . '.event_migration') as $e) { $errors[] = $e; }
+            }
+
             $include = $exportData['include_sources'] ?? null;
             if (!is_array($include)) {
                 $errors[] = new ValidationError('invalid_type', 'include_sources must be a list.', $path . '.include_sources', 'list', gettype($include));
@@ -263,6 +270,37 @@ final readonly class ConfigValidator
             return [new ValidationError('invalid_value', 'TTL format is invalid.', $path, '30s|15m|1h|1d', $ttl)];
         }
         return [];
+    }
+
+    /** @return list<ValidationError> */
+    private function validateEventMigration(mixed $eventMigration, string $path): array
+    {
+        $errors = [];
+        if (!is_array($eventMigration)) {
+            return [new ValidationError('invalid_type', 'event_migration must be a mapping.', $path, 'mapping', gettype($eventMigration))];
+        }
+
+        foreach ($this->validateUnknownKeys($eventMigration, self::EVENT_MIGRATION_ALLOWED_KEYS, $path) as $e) { $errors[] = $e; }
+
+        if (array_key_exists('enabled', $eventMigration) && !is_bool($eventMigration['enabled'])) {
+            $errors[] = new ValidationError('invalid_type', 'event_migration.enabled must be a boolean.', $path . '.enabled', 'boolean', gettype($eventMigration['enabled']));
+        }
+
+        if (array_key_exists('gap_tolerance', $eventMigration)) {
+            $gapTolerance = (string) $eventMigration['gap_tolerance'];
+            if (EventMigrationConfig::parseDurationSeconds($gapTolerance) === null) {
+                $errors[] = new ValidationError('invalid_value', 'Gap tolerance format is invalid.', $path . '.gap_tolerance', '0s|5m|1h|1d|1w', $gapTolerance);
+            }
+        }
+
+        if (array_key_exists('strategy', $eventMigration)) {
+            $strategy = (string) $eventMigration['strategy'];
+            if (!in_array($strategy, self::EVENT_MIGRATION_STRATEGIES, true)) {
+                $errors[] = new ValidationError('invalid_value', 'Unsupported event migration strategy.', $path . '.strategy', implode('|', self::EVENT_MIGRATION_STRATEGIES), $strategy);
+            }
+        }
+
+        return $errors;
     }
 
     /** @return list<ValidationError> */

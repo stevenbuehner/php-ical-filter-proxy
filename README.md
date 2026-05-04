@@ -266,7 +266,54 @@ filters:
         values: ["Standard"]
 ```
 
-## 14. Caching-Konzept
+## 14. Event Migration pro Export
+Mit `event_migration` können sich überschneidende oder zeitlich nahe Events innerhalb eines Exports zu einem gemeinsamen Termin zusammengeführt werden.
+
+Die Migration läuft:
+- nach allen Source-Filtern (`sources.<key>.filters`)
+- nach allen Include-Filtern (`exports.<key>.include_sources[].filters`)
+- vor finaler Serialisierung
+
+Parameter pro Export:
+- `event_migration.enabled` (`bool`, optional, default `false`)
+- `event_migration.gap_tolerance` (`string`, optional, default `0s`, z. B. `5m`)
+- `event_migration.strategy` (`string`, optional, default `merge_titles_csv`)
+
+Beispiel:
+```yaml
+exports:
+  handball_kinder:
+    title: "Handballtermine Kinder"
+    slug: "handball-kinder"
+    token: "random-secret-token"
+    cache_ttl: "10m"
+    include_sources:
+      - source: ananias_f
+      - source: ananias_e
+      - source: timjamin_hsg
+      - source: danio_e
+    event_migration:
+      enabled: true
+      gap_tolerance: "5m"
+      strategy: "merge_titles_csv"
+```
+
+Regeln:
+- Scope ist exportweit über alle eingebundenen Sources.
+- All-day-Events werden getrennt von zeitgebundenen Events behandelt.
+- Events werden gruppiert, wenn sie sich überschneiden oder wenn der Abstand kleiner/gleich `gap_tolerance` ist.
+- Events ohne `DTEND` werden als 0-Dauer behandelt.
+
+Standardstrategie `merge_titles_csv`:
+- `summary`: Titel komma-separiert in zeitlicher Reihenfolge
+- `dtstart`: frühester Start
+- `dtend`: spätestes Ende
+- `location`: bei identischem Wert einmal, sonst eindeutige Werte komma-separiert
+- `description`: Inhalte mit Trenner zusammengeführt
+- `categories`: Union (eindeutige Kategorien)
+- `url`: erste verfügbare URL
+- `uid`: deterministisch neu erzeugt
+## 15. Caching-Konzept
 Zwei Ebenen:
 - Source-Cache (`var/cache/feeds`): normalisierte Source-Feeds nach Anwendung von `sources.<id>.filters` inkl. Transformationen
 - Export-Cache (`var/cache/exports`): fertige serialisierte Export-Feeds
@@ -275,7 +322,7 @@ Fallback-Verhalten:
 - bei HTTP-Fehlern wird (wenn vorhanden) veralteter normalisierter Source-Cache verwendet
 - wenn keine Quelle erfolgreich verarbeitet werden kann, liefert der HTTP-Endpunkt `503`
 
-## 15. CLI-Befehle
+## 16. CLI-Befehle
 Konfiguration:
 ```bash
 php bin/console app:config:validate
@@ -316,19 +363,19 @@ php bin/console app:cache:prune --scope=feeds --age=3d
 php bin/console app:cache:prune --scope=all --age=12h
 ```
 
-## 16. Fehlerbehandlung
+## 17. Fehlerbehandlung
 - Konfigurationsfehler: hart abbrechen
 - Runtime-Fehler einzelner Quellen: loggen und nach Möglichkeit mit anderen Quellen fortfahren
 - Ungültige Quellen blockieren nicht automatisch den gesamten Export
 - HTTP-Endpunkt gibt keine sensiblen Interna aus
 
-## 17. Geplante Admin-GUI
+## 18. Geplante Admin-GUI
 Die Struktur ist bereits auf spätere GUI-Erweiterung vorbereitet:
 - serialisierbare DTOs
 - klar getrennte Layer (Config, Calendar, Filter, Cache, Http)
 - bestehende CLI-Funktionen als Grundlage für GUI-Aktionen
 
-## 18. Sicherheitshinweise zu Tokens
+## 19. Sicherheitshinweise zu Tokens
 - Tokens schützen öffentliche Feed-URLs
 - Tokens niemals in Logs, Tickets oder Screenshots teilen
 - pro Export unterschiedliche, starke, zufällige Tokens nutzen

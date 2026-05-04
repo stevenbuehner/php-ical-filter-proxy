@@ -17,6 +17,7 @@ final readonly class ExportConfig
         public string $token,
         public string $cacheTtl,
         public array $includeSources,
+        public ?EventMigrationConfig $eventMigration = null,
         public array $extra = [],
     ) {
     }
@@ -33,6 +34,8 @@ final readonly class ExportConfig
             $includeSources[] = IncludedSourceConfig::fromArray($includedSourceRaw);
         }
 
+        $eventMigration = is_array($data['event_migration'] ?? null) ? EventMigrationConfig::fromArray($data['event_migration']) : null;
+
         return new self(
             id: $id,
             title: (string) ($data['title'] ?? ''),
@@ -40,7 +43,8 @@ final readonly class ExportConfig
             token: (string) ($data['token'] ?? ''),
             cacheTtl: (string) ($data['cache_ttl'] ?? ''),
             includeSources: $includeSources,
-            extra: self::extra($data, ['title', 'slug', 'token', 'cache_ttl', 'include_sources']),
+            eventMigration: $eventMigration,
+            extra: self::extra($data, ['title', 'slug', 'token', 'cache_ttl', 'include_sources', 'event_migration']),
         );
     }
 
@@ -56,6 +60,7 @@ final readonly class ExportConfig
                 static fn (IncludedSourceConfig $include): array => $include->toArray(),
                 $this->includeSources
             ),
+            'event_migration' => $this->eventMigration?->toArray(),
             'extra' => $this->extra,
         ];
     }

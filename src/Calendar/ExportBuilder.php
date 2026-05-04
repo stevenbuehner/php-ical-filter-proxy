@@ -31,6 +31,7 @@ final readonly class ExportBuilder
             $sourceMap[$includedSource->source] = $config->sources[$includedSource->source];
         }
 
+        $migrationEngine = new EventMigrationEngine();
         $fetchResults = $this->feedFetcher->fetchAll($sourceMap);
         $this->logger->info('export_generation_start', ['slug' => $export->slug, 'sources' => count($sourceMap)]);
         $successfulSources = 0;
@@ -62,6 +63,8 @@ final readonly class ExportBuilder
                 $events[] = $event;
             }
         }
+
+        $events = $migrationEngine->migrate($events, $export, $export->eventMigration);
 
         if ($successfulSources === 0) {
             return new ExportBuildResult(null, 0);

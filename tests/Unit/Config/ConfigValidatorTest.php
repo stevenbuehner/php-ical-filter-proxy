@@ -23,6 +23,10 @@ exports:
     title: "Export"
     slug: "e1"
     token: "secret"
+    event_migration:
+      enabled: true
+      gap_tolerance: "5m"
+      strategy: "merge_titles_csv"
     include_sources:
       - source: s1
 YAML);

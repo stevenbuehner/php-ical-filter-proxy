@@ -39,6 +39,7 @@ final class CacheKeyBuilder
                 static fn ($include): array => $include->toArray(),
                 $exportConfig->includeSources
             ),
+            'event_migration' => $exportConfig->eventMigration?->toArray(),
         ];
 
         $json = json_encode($payload, JSON_THROW_ON_ERROR);
