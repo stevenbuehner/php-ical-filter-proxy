@@ -23,6 +23,15 @@ exports:
     title: "Export"
     slug: "e1"
     token: "secret"
+    filters:
+      - type: match
+        match:
+          any: true
+        on_match: transform
+        transform:
+          - type: prefix_text
+            field: summary
+            value: "[Export] "
     event_migration:
       enabled: true
       gap_tolerance: "5m"

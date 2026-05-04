@@ -96,7 +96,23 @@ Wichtig:
 - `on_match` entscheidet, was nach einem Treffer passiert
 - `transform` wird nur genutzt, wenn `on_match: transform` gesetzt ist
 
-## 6. Der Regel-Dreischritt
+## 6. Verarbeitungspipeline
+Aus Anwendersicht läuft ein Export in dieser Reihenfolge:
+
+1. Quellen laden
+2. Source-Filter anwenden
+3. Events aller `include_sources` sammeln
+4. Export-Filter anwenden
+5. Event-Migration anwenden
+6. Dubletten entfernen
+
+Wichtig:
+- Source-Filter betreffen nur die jeweilige Quelle
+- Export-Filter betreffen den gesamten Export nach dem Zusammenführen
+- `event_migration` arbeitet auf dem bereits gefilterten Export
+- Deduplication sorgt dafür, dass Events mit gleicher `UID` nur einmal im Export landen
+
+## 7. Der Regel-Dreischritt
 Eine Filterregel besteht immer aus drei Ebenen:
 
 1. `type` bzw. der Filtertyp
@@ -122,7 +138,7 @@ Das bedeutet:
 - `on_match: transform` sagt, dass bei Treffer transformiert werden soll
 - `transform` enthält die konkrete Änderung
 
-## 7. Erklärung Sources
+## 8. Erklärung Sources
 `sources` definiert externe Eingangsfeeds.
 
 Pro Source:
@@ -131,7 +147,7 @@ Pro Source:
 - `cache_ttl` optional (Format: `30s`, `15m`, `1h`, `1d`)
 - `filters` optional (werden vor Export-Ebene angewendet)
 
-## 8. Erklärung Exports
+## 9. Erklärung Exports
 `exports` definiert auszugebende Zielfeeds.
 
 Pro Export:
@@ -143,10 +159,10 @@ Pro Export:
 - `filters` optional und wirken erst nach dem Merge aller `include_sources`
 - `filters` pro Included Source arbeiten mit `type`, `match`, `on_match` und optional `transform`
 
-## 9. Erklärung Source-Filter
+## 10. Erklärung Source-Filter
 Source-Filter leben unter `sources.<key>.filters` und betreffen nur diese einzelne Quelle, bevor sie in Exporte eingeht.
 
-## 10. Erklärung Export-Filter
+## 11. Erklärung Export-Filter
 Export-Filter leben unter `exports.<key>.filters` und werden nach dem Merge aller inkludierten Quellen auf den kompletten Export angewendet.
 
 Beispiel:
@@ -161,7 +177,7 @@ exports:
         on_match: remove
 ```
 
-## 11. Erklärung Filter-Verhalten
+## 12. Erklärung Filter-Verhalten
 - `on_match: remove`: entferne alle Events, die matchen
 - `on_match: keep`: behalte Events unverändert
 - `on_match: transform`: führe `transform[]` aus und behalte das Event
@@ -169,7 +185,7 @@ exports:
 
 Regeln werden strikt in YAML-Reihenfolge ausgeführt. Mehrere Bedingungen innerhalb eines `match`-Blocks sind mit `AND` verknüpft.
 
-## 12. Erklärung Match-Operatoren
+## 13. Erklärung Match-Operatoren
 Ein `match`-Filter prüft ein oder mehrere Felder eines Events. Die Felder werden mit den angegebenen Operatoren verglichen.
 
 Unterstützte Felder:
@@ -278,7 +294,7 @@ match:
     until: "+12 months"
 ```
 
-## 13. Erklärung Transformations
+## 14. Erklärung Transformations
 Transformationen laufen nach erfolgreichem Match einer Regel und werden als Liste von `type`-Einträgen angegeben.
 
 Unterstützt:
@@ -427,13 +443,14 @@ filters:
         field: url
 ```
 
-## 14. Event Migration pro Export
+## 15. Event Migration pro Export
 Mit `event_migration` können sich überschneidende oder zeitlich nahe Events innerhalb eines Exports zu einem gemeinsamen Termin zusammengeführt werden.
 
 Die Migration läuft:
 - nach allen Source-Filtern (`sources.<key>.filters`)
 - nach allen Include-Filtern (`exports.<key>.include_sources[].filters`)
-- vor finaler Serialisierung
+- nach allen Export-Filtern (`exports.<key>.filters`)
+- vor der Auslieferung des Exports
 
 Parameter pro Export:
 - `event_migration.enabled` (`bool`, optional, default `false`)
