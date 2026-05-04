@@ -1,12 +1,12 @@
 # iCal Proxy & Filter Service
 
 ## 1. Ziel des Projekts
-Dieses Projekt stellt einen leichtgewichtigen iCal-Proxy bereit, der externe ICS-Quellen lädt, optional filtert und transformiert, zusammenführt, dedupliziert und als eigene geschützte Feeds ausliefert.
+Dieses Projekt stellt einen leichtgewichtigen iCal-Proxy bereit. Er lädt externe ICS-Quellen, filtert und transformiert Events optional, führt mehrere Quellen zusammen, dedupliziert sie und liefert daraus geschützte Feeds aus.
 
 Hauptziele:
 - mehrere Quellen pro Export unterstützen
-- robuste Filterregeln (`keep` / `remove`)
-- optionale Event-Transformationen
+- robuste Filterregeln mit klaren Reaktionen auf Treffer
+- optionale Event-Transformationen pro Filterregel
 - Source- und Export-Cache
 - CLI-Werkzeuge für Betrieb und Debugging
 - Erweiterbarkeit für spätere Admin-GUI
@@ -64,6 +64,12 @@ http://127.0.0.1:8080/feed/technikdienst/random-secret-token.ics
 ```
 
 ## 6. Vollständige YAML-Referenz
+Die Konfiguration ist hierarchisch aufgebaut:
+- `sources` beschreibt die Eingangsfeeds
+- `exports` beschreibt die auszuliefernden Feeds
+- unter beiden Bereichen können `filters` definiert werden
+
+Grundform:
 ```yaml
 sources:
   source_key:
@@ -97,7 +103,40 @@ exports:
                 value: "[Tech] "
 ```
 
-## 7. Erklärung Sources
+Wichtig:
+- `sources` wird zuerst geladen
+- `exports` referenziert einzelne Sources über `include_sources`
+- Filter werden in YAML-Reihenfolge ausgeführt
+- `on_match` entscheidet, was nach einem Treffer passiert
+- `transform` wird nur genutzt, wenn `on_match: transform` gesetzt ist
+
+## 7. Der Regel-Dreischritt
+Eine Filterregel besteht immer aus drei Ebenen:
+
+1. `type` bzw. der Filtertyp
+2. `on_match` bzw. das Verhalten bei Treffer
+3. `transform` bzw. die optionalen Veränderungen
+
+Beispiel:
+```yaml
+filters:
+  - type: match
+    match:
+      summary:
+        contains: "Technik"
+    on_match: transform
+    transform:
+      - type: prefix_text
+        field: summary
+        value: "[Tech] "
+```
+
+Das bedeutet:
+- `type: match` prüft, ob die Regel greift
+- `on_match: transform` sagt, dass bei Treffer transformiert werden soll
+- `transform` enthält die konkrete Änderung
+
+## 8. Erklärung Sources
 `sources` definiert externe Eingangsfeeds.
 
 Pro Source:
@@ -106,7 +145,7 @@ Pro Source:
 - `cache_ttl` optional (Format: `30s`, `15m`, `1h`, `1d`)
 - `filters` optional (werden vor Export-Ebene angewendet)
 
-## 8. Erklärung Exports
+## 9. Erklärung Exports
 `exports` definiert auszugebende Zielfeeds.
 
 Pro Export:
@@ -117,20 +156,23 @@ Pro Export:
 - `include_sources` Pflicht (mindestens eine referenzierte Source)
 - `filters` pro Included Source arbeiten mit `type`, `match`, `on_match` und optional `transform`
 
-## 9. Erklärung Source-Filter
+## 10. Erklärung Source-Filter
 Source-Filter leben unter `sources.<key>.filters` und betreffen nur diese einzelne Quelle, bevor sie in Exporte eingeht.
 
-## 10. Erklärung Export-Filter
+## 11. Erklärung Export-Filter
 Export-Filter leben unter `exports.<key>.include_sources[].filters` und werden pro inkludierter Quelle im Kontext eines Exports angewendet.
 
-## 11. Erklärung Filter-Verhalten
+## 12. Erklärung Filter-Verhalten
 - `on_match: remove`: entferne alle Events, die matchen
 - `on_match: keep`: behalte Events unverändert
 - `on_match: transform`: führe `transform[]` aus und behalte das Event
+- `match.any: true`: diese Regel trifft auf jedes Event zu
 
-Regeln werden strikt in YAML-Reihenfolge ausgeführt.
+Regeln werden strikt in YAML-Reihenfolge ausgeführt. Mehrere Bedingungen innerhalb eines `match`-Blocks sind mit `AND` verknüpft.
 
-## 12. Erklärung Match-Operatoren
+## 13. Erklärung Match-Operatoren
+Ein `match`-Filter prüft ein oder mehrere Felder eines Events. Die Felder werden mit den angegebenen Operatoren verglichen.
+
 Unterstützte Felder:
 - `summary`
 - `description`
@@ -158,7 +200,7 @@ Unterstützte Datumswerte:
 - relative Angaben wie `+12 months`, `-7 days`
 - absolute Form `YYYY-MM-DD`
 
-Beispiele pro Operator:
+Beispiele:
 
 `contains`
 ```yaml
@@ -237,7 +279,7 @@ match:
     until: "+12 months"
 ```
 
-## 13. Erklärung Transformations
+## 14. Erklärung Transformations
 Transformationen laufen nach erfolgreichem Match einer Regel und werden als Liste von `type`-Einträgen angegeben.
 
 Unterstützt:
@@ -254,13 +296,10 @@ Zeitverschiebung:
 - `DTEND` wird nie vor `DTSTART` geschrieben; falls nötig, wird `DTEND` automatisch auf `DTSTART` korrigiert
 - wenn `DURATION` vorhanden ist, wird sie zur neuen Zeitspanne passend neu berechnet
 
-Hinweis:
-- Bei `action: keep` sind Transformationen typischerweise relevant
-- Bei `action: remove` werden gematchte Events entfernt, daher ist Transform dort praktisch meist ohne Effekt
-- Wenn Transformationen immer auf alle Events angewendet werden sollen, nutze `action: keep` mit:
-  `match.any: true`
+### 14.1 Texttransformationen
+Texttransformationen arbeiten auf den Feldern `summary`, `description`, `location` und `url`.
 
-Beispiel für "immer transformieren":
+Beispiel:
 ```yaml
 filters:
   - type: match
@@ -271,11 +310,53 @@ filters:
       - type: prefix_text
         field: summary
         value: "[Global] "
-      - type: categories_add
-        value: "Standard"
+      - type: suffix_text
+        field: summary
+        value: " (öffentlich)"
+      - type: replace_text
+        field: description
+        search: "intern"
+        replace: "extern"
 ```
 
-Beispiel für Start/Ende relativ zum aktuellen Start:
+### 14.2 Kategorien
+Kategorien werden als Liste bzw. ICS-Property behandelt.
+
+Beispiel:
+```yaml
+filters:
+  - type: match
+    match:
+      any: true
+    on_match: transform
+    transform:
+      - type: categories_add
+        value: "Standard"
+      - type: categories_remove
+        value: "Entwurf"
+```
+
+### 14.3 Zeit und Datum
+Es gibt zwei verschiedene Zeit-Transformationen:
+
+- `modify_datetime` verändert `start` oder `end` einzeln
+- `adjust_times` berechnet Start und Ende gemeinsam
+
+Beispiel `modify_datetime`:
+```yaml
+filters:
+  - type: match
+    match:
+      summary:
+        contains: "Workshop"
+    on_match: transform
+    transform:
+      - type: modify_datetime
+        field: start
+        value: "+1 day"
+```
+
+Beispiel `adjust_times`:
 ```yaml
 filters:
   - type: match
@@ -295,12 +376,12 @@ filters:
 Beispiel mit `current_end` und Stunden:
 ```yaml
 filters:
-  - name: "Dauer anpassen"
-    action: keep
+  - type: match
     match:
       summary:
         contains: "Workshop"
-    transforms:
+    on_match: transform
+    transform:
       - type: adjust_times
         start:
           reference: current_end
@@ -313,11 +394,11 @@ filters:
 Beispiel mit Sekunden und vorhandener `DURATION`:
 ```yaml
 filters:
-  - name: "Fein verschieben"
-    action: keep
+  - type: match
     match:
       any: true
-    transforms:
+    on_match: transform
+    transform:
       - type: adjust_times
         start:
           reference: current_start
@@ -327,7 +408,27 @@ filters:
           offset: "+90s"
 ```
 
-## 14. Event Migration pro Export
+### 14.4 Weitere Transformationsarten
+- `replace_regex` ersetzt per regulärem Ausdruck
+- `remove_property` entfernt eine ICS-Property komplett
+
+Beispiel:
+```yaml
+filters:
+  - type: match
+    match:
+      any: true
+    on_match: transform
+    transform:
+      - type: replace_regex
+        field: description
+        pattern: "/\\s+/"
+        replacement: " "
+      - type: remove_property
+        field: url
+```
+
+## 15. Event Migration pro Export
 Mit `event_migration` können sich überschneidende oder zeitlich nahe Events innerhalb eines Exports zu einem gemeinsamen Termin zusammengeführt werden.
 
 Die Migration läuft:
@@ -374,16 +475,17 @@ Standardstrategie `merge_titles_csv`:
 - `categories`: Union (eindeutige Kategorien)
 - `url`: erste verfügbare URL
 - `uid`: deterministisch neu erzeugt
-## 15. Caching-Konzept
+
+## 16. Caching-Konzept
 Zwei Ebenen:
 - Source-Cache (`var/cache/feeds`): normalisierte Source-Feeds nach Anwendung von `sources.<id>.filters` inkl. Transformationen
 - Export-Cache (`var/cache/exports`): fertige serialisierte Export-Feeds
 
 Fallback-Verhalten:
-- bei HTTP-Fehlern wird (wenn vorhanden) veralteter normalisierter Source-Cache verwendet
+- bei HTTP-Fehlern wird, wenn vorhanden, veralteter normalisierter Source-Cache verwendet
 - wenn keine Quelle erfolgreich verarbeitet werden kann, liefert der HTTP-Endpunkt `503`
 
-## 16. CLI-Befehle
+## 17. CLI-Befehle
 Konfiguration:
 ```bash
 php bin/console app:config:validate
@@ -417,28 +519,35 @@ php bin/console app:cache:clear --scope=feeds
 php bin/console app:cache:clear --scope=exports
 ```
 
-Cache aufräumen (Dateien älter als Alter):
+Cache aufräumen:
 ```bash
 php bin/console app:cache:prune
 php bin/console app:cache:prune --scope=feeds --age=3d
 php bin/console app:cache:prune --scope=all --age=12h
 ```
 
-## 17. Fehlerbehandlung
+## 18. Fehlerbehandlung
 - Konfigurationsfehler: hart abbrechen
 - Runtime-Fehler einzelner Quellen: loggen und nach Möglichkeit mit anderen Quellen fortfahren
 - Ungültige Quellen blockieren nicht automatisch den gesamten Export
 - HTTP-Endpunkt gibt keine sensiblen Interna aus
 
-## 18. Geplante Admin-GUI
+## 19. Geplante Admin-GUI
 Die Struktur ist bereits auf spätere GUI-Erweiterung vorbereitet:
 - serialisierbare DTOs
 - klar getrennte Layer (Config, Calendar, Filter, Cache, Http)
 - bestehende CLI-Funktionen als Grundlage für GUI-Aktionen
 
-## 19. Sicherheitshinweise zu Tokens
+## 20. Sicherheitshinweise zu Tokens
 - Tokens schützen öffentliche Feed-URLs
 - Tokens niemals in Logs, Tickets oder Screenshots teilen
 - pro Export unterschiedliche, starke, zufällige Tokens nutzen
 - kompromittierte Tokens sofort rotieren
 - bei ungültigem `slug/token` wird bewusst `404` geliefert, um Exporte nicht zu leaken
+
+## 21. Typische Fehlerquellen
+- `slug` und `token` müssen eindeutig bzw. nicht leer sein.
+- `cache_ttl` muss im Format wie `30s`, `15m`, `1h` oder `1d` angegeben werden.
+- `regex`-Pattern müssen gültige PCRE-Ausdrücke sein.
+- Bei `adjust_times` sind nur `s`, `m` und `h` als Offsets erlaubt.
+- `modify_datetime` verschiebt nur `start` oder `end`, nicht beide gemeinsam.
