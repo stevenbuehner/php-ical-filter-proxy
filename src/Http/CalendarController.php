@@ -22,7 +22,7 @@ final readonly class CalendarController
     ) {
     }
 
-    public function feed(string $slug, string $token): Response
+    public function feed(string $secret, string $slug): Response
     {
         $logger = new FileLogger($this->projectRoot . '/var/log/app.log');
         try {
@@ -40,7 +40,7 @@ final readonly class CalendarController
             }
         }
 
-        if ($export === null || !hash_equals($export->token, $token)) {
+        if ($export === null || !hash_equals($export->token, $secret)) {
             return new Response('Not found', Response::HTTP_NOT_FOUND);
         }
 

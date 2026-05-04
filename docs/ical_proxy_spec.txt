@@ -121,7 +121,7 @@ contains, contains_any, contains_all, not_contains, regex, equals, empty
 - minimale Speicherhaltung
 
 12. HTTP API
-GET /feed/{slug}/{token}.ics
+GET /feed/{SECRET}/{SLUG}.ics
 Response: text/calendar
 
 13. CLI Commands

@@ -16,7 +16,7 @@ $request = Request::createFromGlobals();
 
 $routes = new RouteCollection();
 $routes->add('health', new Route('/health'));
-$routes->add('feed_public', new Route('/feed/{slug}/{token}.ics'));
+$routes->add('feed_public', new Route('/feed/{secret}/{slug}.ics'));
 
 $context = (new RequestContext())->fromRequest($request);
 $matcher = new UrlMatcher($routes, $context);
@@ -34,7 +34,7 @@ try {
 
     if (($parameters['_route'] ?? null) === 'feed_public') {
         $controller = new CalendarController(dirname(__DIR__));
-        $response = $controller->feed((string) $parameters['slug'], (string) $parameters['token']);
+        $response = $controller->feed((string) $parameters['secret'], (string) $parameters['slug']);
         $response->send();
         return;
     }

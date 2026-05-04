@@ -26,7 +26,7 @@ final class ListExportsCommand extends Command
 
         $rows = [];
         foreach ($config->exports as $key => $export) {
-            $feedPath = sprintf('/feed/%s/%s.ics', $export->slug, $export->token);
+            $feedPath = sprintf('/feed/%s/%s.ics', $export->token, $export->slug);
             $rows[] = [$key, $export->title, $export->slug, $feedPath, (string) count($export->includeSources), $export->cacheTtl];
         }
 

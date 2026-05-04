@@ -55,12 +55,12 @@ php bin/console app:config:validate
 ## 5. Beispiel für Kalender-Export-URL
 Öffentlicher Feed-Endpunkt:
 ```text
-GET /feed/{slug}/{token}.ics
+GET /feed/{SECRET}/{SLUG}.ics
 ```
 
 Beispiel:
 ```text
-http://127.0.0.1:8080/feed/technikdienst/random-secret-token.ics
+http://127.0.0.1:8080/feed/random-secret-token/technikdienst.ics
 ```
 
 ## 6. Vollständige YAML-Referenz
