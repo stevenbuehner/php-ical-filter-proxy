@@ -1,0 +1,15 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Do not rewrite existing files or directories.
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Keep the front controller itself untouched.
+    RewriteRule ^index\.php$ - [L]
+
+    # Forward all application routes to the front controller.
+    RewriteRule . index.php [QSA,L]
+</IfModule>
