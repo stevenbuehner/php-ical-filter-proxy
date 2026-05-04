@@ -63,4 +63,12 @@ final class RuleRegistryTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $registry->filter('missing');
     }
+
+    public function testUnknownTransformTypeThrows(): void
+    {
+        $registry = new RuleRegistry([], []);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $registry->transform('missing');
+    }
 }

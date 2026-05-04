@@ -103,4 +103,78 @@ YAML);
         self::assertContains('exports.e1.include_sources[0].filters[0].transform[0].start.reference', $paths);
         self::assertContains('exports.e1.include_sources[0].filters[0].transform[0].start.offset', $paths);
     }
+
+    public function testValidatorRejectsUnknownFilterType(): void
+    {
+        $configFile = tempnam(sys_get_temp_dir(), 'cfgfiltertype_');
+        self::assertNotFalse($configFile);
+
+        file_put_contents($configFile, <<<'YAML'
+sources:
+  s1:
+    url: "https://example.com/a.ics"
+exports:
+  e1:
+    title: "Export"
+    slug: "e1"
+    token: "secret"
+    include_sources:
+      - source: s1
+        filters:
+          - type: unknown_filter
+            match:
+              any: true
+            on_match: keep
+YAML);
+
+        $cacheRoot = sys_get_temp_dir() . '/ical_cache_' . uniqid('', true);
+        mkdir($cacheRoot . '/feeds', 0777, true);
+        mkdir($cacheRoot . '/exports', 0777, true);
+
+        $errors = (new ConfigValidator())->validateFile($configFile, $cacheRoot . '/feeds', $cacheRoot . '/exports');
+        $messages = array_map(static fn ($e): string => $e->message, $errors);
+        $paths = array_map(static fn ($e): string => $e->path, $errors);
+
+        self::assertContains('Unsupported filter type.', $messages);
+        self::assertContains('exports.e1.include_sources[0].filters[0].type', $paths);
+    }
+
+    public function testValidatorRejectsUnknownTransformType(): void
+    {
+        $configFile = tempnam(sys_get_temp_dir(), 'cfgtransformtype_');
+        self::assertNotFalse($configFile);
+
+        file_put_contents($configFile, <<<'YAML'
+sources:
+  s1:
+    url: "https://example.com/a.ics"
+exports:
+  e1:
+    title: "Export"
+    slug: "e1"
+    token: "secret"
+    include_sources:
+      - source: s1
+        filters:
+          - type: match
+            match:
+              any: true
+            on_match: transform
+            transform:
+              - type: unknown_transform
+                field: summary
+                value: "x"
+YAML);
+
+        $cacheRoot = sys_get_temp_dir() . '/ical_cache_' . uniqid('', true);
+        mkdir($cacheRoot . '/feeds', 0777, true);
+        mkdir($cacheRoot . '/exports', 0777, true);
+
+        $errors = (new ConfigValidator())->validateFile($configFile, $cacheRoot . '/feeds', $cacheRoot . '/exports');
+        $messages = array_map(static fn ($e): string => $e->message, $errors);
+        $paths = array_map(static fn ($e): string => $e->path, $errors);
+
+        self::assertContains('Unsupported transform type.', $messages);
+        self::assertContains('exports.e1.include_sources[0].filters[0].transform[0].type', $paths);
+    }
 }

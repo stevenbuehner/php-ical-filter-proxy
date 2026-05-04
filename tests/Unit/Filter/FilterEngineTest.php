@@ -78,7 +78,9 @@ final class FilterEngineTest extends TestCase
 
         $result = (new FilterEngine())->apply($events, $rules);
 
-        self::assertGreaterThanOrEqual(1, count($result->filteredEvents));
+        self::assertCount(3, $result->filteredEvents);
         self::assertStringStartsWith('[STOP]', $result->filteredEvents[0]->summary);
+        self::assertStringNotContainsString('STOP', $result->filteredEvents[1]->summary);
+        self::assertStringNotContainsString('STOP', $result->filteredEvents[2]->summary);
     }
 }

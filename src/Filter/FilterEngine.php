@@ -22,6 +22,7 @@ final readonly class FilterEngine
     public function apply(array $events, array $rules): FilterEngineResult
     {
         $currentEvents = $events;
+        $stoppedEvents = [];
         $perRuleRemovedCount = [];
         $perRuleKeptCount = [];
         $warnings = [];
@@ -41,6 +42,12 @@ final readonly class FilterEngine
             $removed = 0;
 
             foreach ($currentEvents as $event) {
+                $eventId = spl_object_id($event->originalEvent);
+                if (isset($stoppedEvents[$eventId])) {
+                    $nextEvents[] = $event;
+                    continue;
+                }
+
                 $matches = $this->matches($event, $rule);
 
                 if (!$matches) {
@@ -60,8 +67,7 @@ final readonly class FilterEngine
                 $nextEvents[] = CalendarEvent::fromVEvent($event->originalEvent);
 
                 if ($rule->stopProcessing) {
-                    $nextEvents = array_merge($nextEvents, array_slice($currentEvents, array_search($event, $currentEvents, true) + 1));
-                    break;
+                    $stoppedEvents[$eventId] = true;
                 }
             }
 
