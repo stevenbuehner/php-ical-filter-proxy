@@ -24,9 +24,54 @@ final class FilterEngineTest extends TestCase
 
         $result = (new FilterEngine())->apply($events, $rules);
 
+        self::assertCount(1, $result->filteredEvents);
+        self::assertSame('Technikabend', $result->filteredEvents[0]->summary);
+    }
+
+    public function testKeepOnlyKeepsMatchingEvents(): void
+    {
+        $ics = file_get_contents(__DIR__ . '/../../Fixtures/filter-summary.ics');
+        self::assertNotFalse($ics);
+        $events = (new CalendarParser())->parseEvents($ics);
+
+        $rules = [
+            new FilterRuleConfig(
+                type: 'match',
+                match: ['summary' => ['contains' => 'Technik']],
+                onMatch: 'keep',
+            ),
+        ];
+
+        $result = (new FilterEngine())->apply($events, $rules);
+
         self::assertCount(2, $result->filteredEvents);
-        self::assertSame('Jugendtreffen', $result->filteredEvents[0]->summary);
+        self::assertSame('Technikdienst Probe', $result->filteredEvents[0]->summary);
         self::assertSame('Technikabend', $result->filteredEvents[1]->summary);
+    }
+
+    public function testKeepRemovesNonMatchingEventsEvenWhenMixedWithOtherRules(): void
+    {
+        $ics = file_get_contents(__DIR__ . '/../../Fixtures/filter-summary.ics');
+        self::assertNotFalse($ics);
+        $events = (new CalendarParser())->parseEvents($ics);
+
+        $rules = [
+            new FilterRuleConfig(
+                type: 'match',
+                match: ['summary' => ['contains' => 'Technik']],
+                onMatch: 'keep',
+            ),
+            new FilterRuleConfig(
+                type: 'match',
+                match: ['summary' => ['contains' => 'Technikdienst']],
+                onMatch: 'remove',
+            ),
+        ];
+
+        $result = (new FilterEngine())->apply($events, $rules);
+
+        self::assertCount(1, $result->filteredEvents);
+        self::assertSame('Technikabend', $result->filteredEvents[0]->summary);
     }
 
     public function testMatchAnyAppliesTransformToAllEvents(): void

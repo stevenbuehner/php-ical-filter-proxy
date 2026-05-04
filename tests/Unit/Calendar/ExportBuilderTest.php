@@ -246,4 +246,96 @@ ICS;
         self::assertSame('Hall A', $events[0]->location);
         self::assertStringNotContainsString('Team B', $result->icsContent);
     }
+
+    public function testExportBuilderKeepFiltersActAsWhitelistOnExport(): void
+    {
+        $sourceA = <<<'ICS'
+BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:a-1@example
+DTSTART:20260501T090000Z
+SUMMARY:Kinder Handball
+END:VEVENT
+BEGIN:VEVENT
+UID:a-2@example
+DTSTART:20260501T100000Z
+SUMMARY:Teenkreis
+END:VEVENT
+END:VCALENDAR
+ICS;
+
+        $sourceB = <<<'ICS'
+BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:b-1@example
+DTSTART:20260501T110000Z
+SUMMARY:Kinderturnen
+END:VEVENT
+END:VCALENDAR
+ICS;
+
+        $httpClient = new MockHttpClient([
+            new MockResponse($sourceA, ['http_code' => 200]),
+            new MockResponse($sourceB, ['http_code' => 200]),
+        ]);
+
+        $cacheDir = sys_get_temp_dir() . '/ical_feed_cache_' . uniqid('', true);
+        $logger = new class () implements LoggerInterface {
+            public function info(string $message, array $context = []): void {}
+            public function warning(string $message, array $context = []): void {}
+            public function error(string $message, array $context = []): void {}
+        };
+
+        $feedFetcher = new FeedFetcher(
+            $httpClient,
+            new FileCache($cacheDir),
+            new CacheKeyBuilder(),
+            new TtlParser(),
+            $logger,
+        );
+
+        $builder = new ExportBuilder($feedFetcher, new CalendarParser(), $logger);
+
+        $sourceConfigA = new SourceConfig('s1', 'Source A', 'https://example.com/a.ics', '15m', []);
+        $sourceConfigB = new SourceConfig('s2', 'Source B', 'https://example.com/b.ics', '15m', []);
+
+        $export = new ExportConfig(
+            id: 'e1',
+            title: 'Kinder Handball',
+            slug: 'kinder-handball',
+            token: 'secret',
+            cacheTtl: '10m',
+            includeSources: [
+                new IncludedSourceConfig('s1', []),
+                new IncludedSourceConfig('s2', []),
+            ],
+            filters: [
+                new FilterRuleConfig(
+                    type: 'match',
+                    match: ['summary' => ['contains' => 'Kinder']],
+                    onMatch: 'keep',
+                ),
+            ],
+        );
+
+        $config = new AppConfig(
+            sources: [
+                's1' => $sourceConfigA,
+                's2' => $sourceConfigB,
+            ],
+            exports: ['e1' => $export],
+        );
+
+        $result = $builder->build($config, $export);
+
+        self::assertNotNull($result->icsContent);
+
+        $events = (new CalendarParser())->parseEvents($result->icsContent);
+        self::assertCount(2, $events);
+        self::assertSame('Kinder Handball', $events[0]->summary);
+        self::assertSame('Kinderturnen', $events[1]->summary);
+        self::assertStringNotContainsString('Teenkreis', $result->icsContent);
+    }
 }

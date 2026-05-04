@@ -69,6 +69,10 @@ final readonly class FilterEngine
                 $matches = $this->matches($event, $rule);
 
                 if (!$matches) {
+                    if ($rule->onMatch === 'keep') {
+                        continue;
+                    }
+
                     $nextEvents[] = $event;
                     continue;
                 }

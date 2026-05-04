@@ -179,11 +179,11 @@ exports:
 
 ## 12. Erklärung Filter-Verhalten
 - `on_match: remove`: entferne alle Events, die matchen
-- `on_match: keep`: behalte Events unverändert
+- `on_match: keep`: behalte nur Events, die matchen
 - `on_match: transform`: führe `transform[]` aus und behalte das Event
 - `match.any: true`: diese Regel trifft auf jedes Event zu
 
-Regeln werden strikt in YAML-Reihenfolge ausgeführt. Mehrere Bedingungen innerhalb eines `match`-Blocks sind mit `AND` verknüpft.
+Regeln werden strikt in YAML-Reihenfolge ausgeführt. Mehrere Bedingungen innerhalb eines `match`-Blocks sind mit `AND` verknüpft. `keep` ist damit ein Whitelist-Filter: Nicht treffende Events werden in dieser Regel entfernt.
 
 ## 13. Erklärung Match-Operatoren
 Ein `match`-Filter prüft ein oder mehrere Felder eines Events. Die Felder werden mit den angegebenen Operatoren verglichen.
